@@ -1,6 +1,6 @@
 # Flow Steward workflow catalog
 
-Ready-made workflows for [Flow Steward](https://github.com/vasily-piksis/agentic-team).
+Ready-made workflows for [Flow Steward](https://github.com/Flow-Steward/flow-steward-app).
 Flow Steward reads [`index.json`](index.json) and lists these workflows under
 **Create workflow → From catalog**, where anyone can search, filter and import them.
 
