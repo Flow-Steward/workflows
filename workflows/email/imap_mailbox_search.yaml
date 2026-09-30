@@ -1,0 +1,90 @@
+schema_version: platform.workflow_bundle.v1
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-09-30T07:20:15+00:00'
+  exported_by: admin
+  source_workflow_id: imap_mailbox_search
+  portability_kind: workflow_bundle
+workflows:
+- workflow_id: imap_mailbox_search
+  version: 1.0.0
+  display_name: Search an IMAP mailbox for new messages
+  description: Search the INBOX of an IMAP mailbox and keep the matching messages for the next step. Use it as the first step of a supplier email workflow.
+  trigger: {}
+  settings:
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags: []
+  phases:
+  - phase_id: start
+    display_name: Start
+    description: Entry.
+    phase_kind: start
+    on_failure:
+      action: escalate
+      max_retries: 1
+    gate:
+      type: none
+    required_outputs: []
+    expected_inputs: []
+    steps:
+    - step_id: read_mailbox
+      step_kind: connector
+      display_name: Read mailbox
+      connector_id: extension.flowsteward.imap-mailbox
+      connector_install_id: 4ecd5a37-29b7-4ae2-8cb9-0924422150a3
+      input_mapping_jsonb:
+        mailbox: literal:INBOX
+      output_mapping_jsonb:
+        messages: state.messages
+      optional: false
+      override:
+        connector:
+          action_id: ''
+          extension_id: flowsteward.imap-mailbox
+          operation_id: search_messages
+          function_name: ''
+  - phase_id: end
+    display_name: End
+    description: Done.
+    phase_kind: terminal
+    on_failure:
+      action: escalate
+      max_retries: 1
+    gate:
+      type: none
+    required_outputs: []
+    expected_inputs: []
+    steps:
+    - step_id: workflow_success
+      step_kind: stop_success
+      display_name: Complete workflow
+      optional: false
+      override:
+        stop_success:
+          message: Done.
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: 4ecd5a37-29b7-4ae2-8cb9-0924422150a3
+    display_name: Generic IMAP Mailbox
+    required: true
+    sources:
+    - start.read_mailbox.connector_install_id
+    - workflow_runtime_dependencies
+    metadata:
+      dependency_kind: extension_install
+    enabled: true
+    extension_id: flowsteward.imap-mailbox
+    version: 0.1.0
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

@@ -1,0 +1,25 @@
+name: Validate submission
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The base branch is needed to refuse edits to already published files.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Test the index builder
+        run: python -m pytest -q scripts
+      - name: Check the submitted workflows
+        run: python scripts/build_index.py --check --base "origin/${{ github.base_ref }}"

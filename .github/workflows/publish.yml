@@ -1,0 +1,43 @@
+name: Publish index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workflows/**"
+      - "categories.json"
+      - "scripts/build_index.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-index
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Each item URL pins the commit that last touched its file.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Build index.json
+        run: python scripts/build_index.py
+      - name: Commit index.json when it changed
+        run: |
+          if git diff --quiet -- index.json; then
+            echo "index.json is unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.json
+          git commit -m "Rebuild index.json"
+          git push
