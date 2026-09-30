@@ -98,6 +98,28 @@ def test_a_sub_workflow_is_its_own_trigger_type():
     assert _derive(bundle).item["trigger_types"] == ["sub_workflow"]
 
 
+def test_schedules_webhooks_and_provider_triggers_become_trigger_types():
+    bundle = _bundle()
+    bundle["metadata"] = {
+        "triggers": [
+            {"kind": "schedule"},
+            {"kind": "webhook"},
+            {"kind": "provider", "provider_key": "acme", "trigger_type_id": "acme.new_mail"},
+        ]
+    }
+    assert _derive(bundle).item["trigger_types"] == ["event", "schedule", "webhook"]
+
+
+def test_the_exporting_version_is_the_minimum_compatible_version():
+    bundle = _bundle()
+    bundle["metadata"] = {"flow_steward_version": "1.2.0"}
+    assert _derive(bundle).item["compatible_flow_steward"] == {"min": "1.2.0", "max": ""}
+
+
+def test_an_export_without_a_version_sets_no_compatibility():
+    assert "compatible_flow_steward" not in _derive(_bundle()).item
+
+
 def test_the_install_id_is_never_a_label():
     bundle = _bundle()
     bundle["dependencies"]["extensions"][0]["display_name"] = "acme.mailbox"

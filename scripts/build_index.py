@@ -141,8 +141,15 @@ def _step_extension_id(step: dict[str, Any]) -> str:
     return connector_id.removeprefix("extension.") if connector_id.startswith("extension.") else ""
 
 
-def _triggers(workflow: dict[str, Any]) -> list[str]:
+def _triggers(workflow: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     found: list[str] = []
+    # Flow Steward records the enabled schedule / webhook / provider triggers here;
+    # a provider trigger (a new e-mail, a new order) is an event to the catalog.
+    for row in metadata.get("triggers") or []:
+        kind = _text((row or {}).get("kind")).lower()
+        value = "event" if kind == "provider" else _TRIGGER_BY_CHANNEL.get(kind)
+        if value:
+            found.append(value)
     trigger = workflow.get("trigger") or {}
     for key in ("type", "kind", "trigger_type"):
         value = _TRIGGER_BY_CHANNEL.get(_text(trigger.get(key)).lower())
@@ -155,6 +162,14 @@ def _triggers(workflow: dict[str, Any]) -> list[str]:
             found.append(value)
     # Every workflow can be started by hand; a bundle that says nothing is manual.
     return sorted(set(found)) or ["manual"]
+
+
+def _compatibility(metadata: dict[str, Any]) -> dict[str, Any]:
+    """The Flow Steward the file was exported from is the oldest it is known to work on."""
+    version = _text(metadata.get("flow_steward_version"))
+    if not _SEMVER.match(version):
+        return {}
+    return {"compatible_flow_steward": {"min": version, "max": ""}}
 
 
 def _secret_values(node: Any, path: str = "") -> list[str]:
@@ -227,6 +242,7 @@ def derive_entry(
     if problems:
         raise CatalogError("\n".join(f"{rel_path}: {problem}" for problem in problems))
 
+    metadata = bundle.get("metadata") or {}
     dependencies = bundle.get("dependencies") or {}
     integrations: list[str] = []
     labels: dict[str, str] = {}
@@ -297,8 +313,9 @@ def derive_entry(
         "categories": [category],
         "tags": sorted({_text(t) for t in workflow.get("tags") or [] if _text(t)}),
         "integrations": integrations,
-        "trigger_types": _triggers(workflow),
+        "trigger_types": _triggers(workflow, metadata),
         "setup_requirements": requirements,
+        **_compatibility(metadata),
         "workflow_yaml_url": url,
         "workflow_yaml_bytes": len(raw),
         "workflow_yaml_sha256": hashlib.sha256(raw).hexdigest(),

@@ -1,15 +1,19 @@
 schema_version: platform.workflow_bundle.v1
 kind: workflow_bundle
 metadata:
-  exported_at: '2026-09-30T07:20:15+00:00'
+  exported_at: '2026-09-30T09:35:18+00:00'
   exported_by: admin
   source_workflow_id: imap_mailbox_search
   portability_kind: workflow_bundle
+  flow_steward_version: 0.3.0
+  triggers:
+  - kind: schedule
 workflows:
 - workflow_id: imap_mailbox_search
   version: 1.0.0
   display_name: Search an IMAP mailbox for new messages
-  description: Search the INBOX of an IMAP mailbox and keep the matching messages for the next step. Use it as the first step of a supplier email workflow.
+  description: Search the INBOX of an IMAP mailbox and keep the matching messages
+    for the next step. Use it as the first step of a supplier email workflow.
   trigger: {}
   settings:
     portability:
