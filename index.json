@@ -1,0 +1,44 @@
+{
+  "schema_version": "workflow_template_catalog/v1",
+  "catalog_revision": "2026-09-30.1f3223d8",
+  "published_at": "2026-09-30T11:26:22Z",
+  "items": [
+    {
+      "item_id": "imap_mailbox_search",
+      "version": "1.0.0",
+      "name": "Search an IMAP mailbox for new messages",
+      "summary": "Search the INBOX of an IMAP mailbox and keep the matching messages for the next step.",
+      "description": "Search the INBOX of an IMAP mailbox and keep the matching messages for the next step. Use it as the first step of a supplier email workflow.",
+      "categories": [
+        "email"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.imap-mailbox"
+      ],
+      "trigger_types": [
+        "schedule"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "extension",
+          "label": "Generic IMAP Mailbox",
+          "ref": "flowsteward.imap-mailbox",
+          "required": true
+        }
+      ],
+      "compatible_flow_steward": {
+        "min": "0.3.0",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/6429ff245fc1ee3144b75a527e7311b947592871/workflows/email/imap_mailbox_search.yaml",
+      "workflow_yaml_bytes": 2444,
+      "workflow_yaml_sha256": "c7a1191e4a93d9def9cb9627820151e5d00bbe3ca2451a9d454598128b9d60e8",
+      "publication_status": "published",
+      "verification_status": "verified"
+    }
+  ],
+  "integration_labels": {
+    "flowsteward.imap-mailbox": "Generic IMAP Mailbox"
+  }
+}
