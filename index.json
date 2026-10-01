@@ -1,6 +1,6 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-09-30.69cd036f",
+  "catalog_revision": "2026-09-30.52b92612",
   "published_at": "2026-09-30T11:26:22Z",
   "items": [
     {
@@ -27,6 +27,7 @@
           "required": true
         }
       ],
+      "includes": [],
       "compatible_flow_steward": {
         "min": "0.3.0",
         "max": ""
