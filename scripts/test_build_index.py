@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -157,7 +158,7 @@ def test_an_unknown_category_folder_is_refused_with_the_allowed_list():
 
 def _repo(tmp_path: Path, monkeypatch) -> Path:
     (tmp_path / "workflows" / "email").mkdir(parents=True)
-    (tmp_path / "categories.json").write_text(json.dumps(sorted(CATEGORIES)))
+    (tmp_path / "categories.json").write_text(json.dumps({key: key.title() for key in sorted(CATEGORIES)}))
     for command in (
         ["git", "init", "-q"],
         ["git", "config", "user.email", "t@example.test"],
@@ -168,12 +169,13 @@ def _repo(tmp_path: Path, monkeypatch) -> Path:
     return tmp_path
 
 
-def _commit(repo: Path, rel: str, bundle: dict) -> None:
+def _commit(repo: Path, rel: str, bundle: dict, *, date: str = "") -> None:
     path = repo / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(bundle, sort_keys=False))
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", rel], cwd=repo, check=True)
+    env = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date} if date else None
+    subprocess.run(["git", "commit", "-qm", rel], cwd=repo, check=True, env=env)
 
 
 def test_the_newest_version_is_listed_and_older_urls_stay_pinned(tmp_path, monkeypatch):
@@ -193,6 +195,42 @@ def test_the_newest_version_is_listed_and_older_urls_stay_pinned(tmp_path, monke
         f"https://raw.githubusercontent.com/acme/catalog/{sha}/workflows/email/mailbox_search_1_1_0.yaml"
     )
     assert index["integration_labels"] == {"acme.mailbox": "Acme Mailbox"}
+
+
+def _committed_at(repo: Path, path: str) -> str:
+    when = subprocess.run(
+        ["git", "log", "-1", "--format=%cI", "--", path], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return builder._iso_utc(when)
+
+
+def test_an_item_records_when_it_first_appeared_and_when_this_version_did(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle(), date="2026-09-01T10:00:00+02:00")
+    _commit(repo, "workflows/email/mailbox_search_1_1_0.yaml", _bundle(version="1.1.0"), date="2026-09-20T09:30:00Z")
+
+    [item] = builder.build_index(repository="acme/catalog")["items"]
+
+    assert item["added_at"] == "2026-09-01T08:00:00Z"
+    assert item["updated_at"] == "2026-09-20T09:30:00Z"
+    assert item["added_at"] == _committed_at(repo, "workflows/email/mailbox_search.yaml")
+
+
+def test_the_index_names_every_category_from_categories_json(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle())
+
+    index = builder.build_index(repository="a/b")
+
+    assert index["category_labels"] == {"email": "Email", "inventory": "Inventory", "other": "Other"}
+
+
+def test_a_category_list_without_names_is_refused(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    (repo / "categories.json").write_text(json.dumps(["email"]))
+
+    with pytest.raises(builder.CatalogError, match="map each category id"):
+        builder.load_categories()
 
 
 def test_the_same_files_always_give_the_same_index(tmp_path, monkeypatch):

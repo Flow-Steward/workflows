@@ -23,3 +23,6 @@ jobs:
         run: python -m pytest -q scripts
       - name: Check the submitted workflows
         run: python scripts/build_index.py --check --base "origin/${{ github.base_ref }}"
+      - name: The categories are the extension catalog's
+        # One list for both catalogs: change it in Flow-Steward/extensions, then copy it here.
+        run: curl -fsSL https://raw.githubusercontent.com/Flow-Steward/extensions/main/categories.json | diff - categories.json

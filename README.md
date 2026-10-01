@@ -15,7 +15,9 @@ the files in `workflows/` after every merge.
    *"Import supplier stock from email attachments into Shopify."*
 2. Export it: **Workflows → ⋯ → Export YAML**. Do not edit the file.
 3. Choose one folder from [`categories.json`](categories.json) and add the file as
-   `workflows/<category>/<workflow_id>.yaml`.
+   `workflows/<category>/<workflow_id>.yaml`. The list is shared with the
+   [extension catalog](https://github.com/Flow-Steward/extensions), whose copy is the
+   original; a pull request that changes it here alone fails.
 4. Open a pull request. The **Validate submission** check tells you what to fix.
 
 The category is your choice; reviewers only check that it is one of the list.
@@ -42,11 +44,12 @@ lists the highest version; older files keep working for anyone who pinned them.
 | Field | Source |
 | --- | --- |
 | Name, summary, description | `display_name` and `description` in the export |
-| Category | the folder |
+| Category | the folder; its name comes from `categories.json` |
 | Integrations | the extensions the workflow's steps use |
 | Integration names | the extension name recorded in the export |
 | Trigger | how the workflow can be started (`manual`, `schedule`, `webhook`, `sub_workflow`) |
 | Requires | project connections, child workflows, tools and AI models it needs |
+| Added, updated | the commit that added the first version, and the one that added this version |
 | Download URL, size, SHA-256 | the file and the commit that last changed it |
 
 ## Maintainers

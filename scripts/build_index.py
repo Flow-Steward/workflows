@@ -337,8 +337,24 @@ def _semver_key(version: str) -> tuple[int, int, int, int, str]:
     return (major, minor, patch, 0 if pre else 1, pre)
 
 
+def load_category_labels() -> dict[str, str]:
+    """categories.json: category id -> the name to show. The same file as the extension catalog's."""
+    raw = json.loads((ROOT / CATEGORIES_FILE).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) and value.strip() for key, value in raw.items()
+    ):
+        raise CatalogError("categories.json must map each category id to the name to show")
+    return {key: value.strip() for key, value in raw.items()}
+
+
 def load_categories() -> set[str]:
-    return set(json.loads((ROOT / CATEGORIES_FILE).read_text(encoding="utf-8")))
+    return set(load_category_labels())
+
+
+def _iso_utc(when: str) -> str:
+    return (
+        datetime.fromisoformat(when).astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
 
 
 def workflow_files() -> list[str]:
@@ -351,14 +367,18 @@ def workflow_files() -> list[str]:
 
 
 def build_index(*, repository: str | None = None) -> dict[str, Any]:
-    categories = load_categories()
+    category_labels = load_category_labels()
+    categories = set(category_labels)
     repo = repository or _repository()
     problems: list[str] = []
     entries: list[Entry] = []
     newest = ""
+    # Published files never change, so a file's last commit is the one that added it.
+    added: dict[str, str] = {}
     for rel_path in workflow_files():
         sha, when = _last_commit(rel_path)
         newest = max(newest, when)
+        added[rel_path] = _iso_utc(when) if when else ""
         url = f"https://raw.githubusercontent.com/{repo}/{sha}/{rel_path}"
         try:
             entries.append(
@@ -390,7 +410,21 @@ def build_index(*, repository: str | None = None) -> dict[str, Any]:
     labels: dict[str, str] = {}
     for entry in chosen:
         labels.update(entry.labels)
-    items = [entry.item for entry in chosen]
+    first_added: dict[str, str] = {}
+    for entry in entries:
+        when = added.get(entry.path, "")
+        item_id = entry.item["item_id"]
+        if when and (item_id not in first_added or when < first_added[item_id]):
+            first_added[item_id] = when
+    items = [
+        {
+            **entry.item,
+            # When the template first appeared, and when this version did.
+            "added_at": first_added.get(entry.item["item_id"], ""),
+            "updated_at": added.get(entry.path, ""),
+        }
+        for entry in chosen
+    ]
 
     # Deterministic: the same files give the same bytes, so publishing commits only on change.
     digest = hashlib.sha256(
@@ -404,6 +438,7 @@ def build_index(*, repository: str | None = None) -> dict[str, Any]:
         "published_at": published_utc.isoformat().replace("+00:00", "Z"),
         "items": items,
         "integration_labels": dict(sorted(labels.items())),
+        "category_labels": category_labels,
     }
 
 
