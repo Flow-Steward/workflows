@@ -1,6 +1,6 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-09-30.1f3223d8",
+  "catalog_revision": "2026-09-30.69cd036f",
   "published_at": "2026-09-30T11:26:22Z",
   "items": [
     {
@@ -35,10 +35,34 @@
       "workflow_yaml_bytes": 2444,
       "workflow_yaml_sha256": "c7a1191e4a93d9def9cb9627820151e5d00bbe3ca2451a9d454598128b9d60e8",
       "publication_status": "published",
-      "verification_status": "verified"
+      "verification_status": "verified",
+      "added_at": "2026-09-30T11:26:22Z",
+      "updated_at": "2026-09-30T11:26:22Z"
     }
   ],
   "integration_labels": {
     "flowsteward.imap-mailbox": "Generic IMAP Mailbox"
+  },
+  "category_labels": {
+    "ai": "AI",
+    "cms": "CMS",
+    "crm": "CRM",
+    "data": "Data",
+    "developer-tools": "Developer tools",
+    "documents": "Documents",
+    "ecommerce": "E-commerce",
+    "email": "Email",
+    "finance": "Finance",
+    "hr": "HR",
+    "inventory": "Inventory",
+    "it": "IT",
+    "marketing": "Marketing",
+    "media": "Media",
+    "messaging": "Messaging",
+    "operations": "Operations",
+    "other": "Other",
+    "productivity": "Productivity",
+    "sales": "Sales",
+    "support": "Support"
   }
 }
