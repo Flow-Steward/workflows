@@ -141,6 +141,70 @@ def _step_extension_id(step: dict[str, Any]) -> str:
     return connector_id.removeprefix("extension.") if connector_id.startswith("extension.") else ""
 
 
+def _step_child_ref(step: dict[str, Any]) -> str:
+    """The workflow an invoke step calls, or ""."""
+    invoke = ((step.get("override") or {}).get("invoke_workflow")) or {}
+    ref = _text(invoke.get("workflow_id"))
+    if ref:
+        return ref
+    if _text(step.get("step_kind")) == "invoke_workflow":
+        return _text(step.get("workflow_id") or step.get("child_workflow_id"))
+    return ""
+
+
+def _child_refs(workflow: dict[str, Any]) -> list[str]:
+    refs: list[str] = []
+    for step in _steps(workflow):
+        ref = _step_child_ref(step)
+        if ref and ref not in refs:
+            refs.append(ref)
+    return refs
+
+
+def _template_parts(
+    bundle: dict[str, Any], workflows: list[dict[str, Any]]
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
+    """(root, children in call order, problems) for a file that is one template.
+
+    The root is the workflow the file was exported for. Every other workflow must be
+    one the root calls, directly or through another child; every workflow called must
+    be in the file, so the template installs complete.
+    """
+    by_id = {_text(w.get("workflow_id")): w for w in workflows if _text(w.get("workflow_id"))}
+    ids = [_text(w.get("workflow_id")) for w in workflows]
+    repeated = sorted({wid for wid in ids if wid and ids.count(wid) > 1})
+    declared = _text((bundle.get("metadata") or {}).get("source_workflow_id"))
+    called = {ref for w in workflows for ref in _child_refs(w)}
+    root_id = declared if declared in by_id else next(
+        (wid for wid in by_id if wid not in called), next(iter(by_id), "")
+    )
+    root = by_id.get(root_id, workflows[0])
+    problems: list[str] = [
+        f"carries workflow '{wid}' more than once" for wid in repeated
+    ]
+    order: list[str] = []
+    queue = list(_child_refs(root))
+    while queue:
+        ref = queue.pop(0)
+        if ref == root_id or ref in order:
+            continue
+        if ref not in by_id:
+            problems.append(
+                f"calls workflow '{ref}', which is not in this file; "
+                "export it with child workflows"
+            )
+            continue
+        order.append(ref)
+        queue.extend(_child_refs(by_id[ref]))
+    strays = sorted(set(by_id) - {root_id} - set(order))
+    if strays:
+        problems.append(
+            f"carries workflows the root does not call: {', '.join(strays)}; "
+            "a file is one workflow and the child workflows it calls"
+        )
+    return root, [by_id[ref] for ref in order], problems
+
+
 def _triggers(workflow: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     found: list[str] = []
     # Flow Steward records the enabled schedule / webhook / provider triggers here;
@@ -216,12 +280,10 @@ def derive_entry(
             f"{rel_path}: not a Flow Steward export (schema_version {BUNDLE_SCHEMA_VERSION})"
         )
     workflows = [w for w in bundle.get("workflows") or [] if isinstance(w, dict)]
-    if len(workflows) != 1:
-        raise CatalogError(
-            f"{rel_path}: a catalog file carries exactly one workflow, found {len(workflows)}; "
-            "export child workflows as their own files"
-        )
-    workflow = workflows[0]
+    if not workflows:
+        raise CatalogError(f"{rel_path}: carries no workflow")
+    workflow, children, structure_problems = _template_parts(bundle, workflows)
+    problems.extend(structure_problems)
 
     item_id = _text(workflow.get("workflow_id"))
     version = _text(workflow.get("version"))
@@ -248,7 +310,7 @@ def derive_entry(
     labels: dict[str, str] = {}
     requirements: list[dict[str, Any]] = []
 
-    for step in _steps(workflow):
+    for step in (step for w in [workflow, *children] for step in _steps(w)):
         extension_id = _step_extension_id(step)
         if extension_id and extension_id not in integrations:
             integrations.append(extension_id)
@@ -289,9 +351,11 @@ def derive_entry(
             requirements.append(
                 {"kind": "connection", "label": label, "required": bool(row.get("required", True))}
             )
+    included = {_text(child.get("workflow_id")) for child in children}
     for row in dependencies.get("child_workflows") or []:
         child = _text((row or {}).get("workflow_id"))
-        if child:
+        # A child the file carries is part of the template, not something to provide.
+        if child and child not in included:
             requirements.append(
                 {"kind": "workflow", "label": f"Child workflow {child}", "ref": child, "required": True}
             )
@@ -315,6 +379,14 @@ def derive_entry(
         "integrations": integrations,
         "trigger_types": _triggers(workflow, metadata),
         "setup_requirements": requirements,
+        # The child workflows this template creates along with itself.
+        "includes": [
+            {
+                "item_id": _text(child.get("workflow_id")),
+                "name": _text(child.get("display_name")) or _text(child.get("workflow_id")),
+            }
+            for child in children
+        ],
         **_compatibility(metadata),
         "workflow_yaml_url": url,
         "workflow_yaml_bytes": len(raw),

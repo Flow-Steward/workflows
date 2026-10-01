@@ -13,7 +13,9 @@ the files in `workflows/` after every merge.
    **description**. The first sentence of the description becomes the card
    summary, so say what the workflow does, for example
    *"Import supplier stock from email attachments into Shopify."*
-2. Export it: **Workflows → ⋯ → Export YAML**. Do not edit the file.
+2. Export it: **Workflows → ⋯ → Export YAML**. If it calls other workflows, tick
+   **Include child workflows**, so they travel in the same file and the template
+   installs complete. Do not edit the file.
 3. Choose one folder from [`categories.json`](categories.json) and add the file as
    `workflows/<category>/<workflow_id>.yaml`. The list is shared with the
    [extension catalog](https://github.com/Flow-Steward/extensions), whose copy is the
@@ -24,7 +26,10 @@ The category is your choice; reviewers only check that it is one of the list.
 
 ### What the check refuses
 
-- a file with more than one workflow (export child workflows as their own files);
+- a workflow that calls another workflow which is not in the file (export it with
+  child workflows);
+- a file carrying a workflow its main workflow does not call (one file is one
+  template: a workflow and the child workflows it calls);
 - a folder that is not a category;
 - a name that is an identifier (`stock_import`) instead of a title, or a
   description shorter than 40 characters;
@@ -48,7 +53,8 @@ lists the highest version; older files keep working for anyone who pinned them.
 | Integrations | the extensions the workflow's steps use |
 | Integration names | the extension name recorded in the export |
 | Trigger | how the workflow can be started (`manual`, `schedule`, `webhook`, `sub_workflow`) |
-| Requires | project connections, child workflows, tools and AI models it needs |
+| Includes | the child workflows the file carries; they are created with it |
+| Requires | project connections, tools and AI models it needs |
 | Added, updated | the commit that added the first version, and the one that added this version |
 | Download URL, size, SHA-256 | the file and the commit that last changed it |
 

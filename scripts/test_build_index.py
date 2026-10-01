@@ -130,7 +130,18 @@ def test_the_install_id_is_never_a_label():
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda b: b["workflows"].append(copy.deepcopy(b["workflows"][0])), "exactly one workflow"),
+        (lambda b: b["workflows"].append(copy.deepcopy(b["workflows"][0])), "more than once"),
+        (
+            lambda b: b["workflows"].append({**copy.deepcopy(b["workflows"][0]), "workflow_id": "stray"}),
+            "does not call: stray",
+        ),
+        (
+            lambda b: b["workflows"][0]["phases"][0]["steps"].append(
+                {"step_id": "call", "step_kind": "invoke_workflow",
+                 "override": {"invoke_workflow": {"workflow_id": "missing_child"}}}
+            ),
+            "export it with child workflows",
+        ),
         (lambda b: b["workflows"][0].update(display_name="mailbox_search"), "readable title"),
         (lambda b: b["workflows"][0].update(description="Too short."), "at least 40"),
         (lambda b: b["workflows"][0].update(version="1.0"), "semantic"),
@@ -270,3 +281,51 @@ def test_adding_a_new_file_passes_the_pull_request_check(tmp_path, monkeypatch):
 
     assert builder.published_file_changes("base") == []
     assert builder.main(["--check", "--base", "base", "--repository", "a/b"]) == 0
+
+
+def _child(workflow_id: str = "fetch_messages") -> dict:
+    return {
+        "workflow_id": workflow_id,
+        "version": "1.0.0",
+        "display_name": "Fetch the messages a search found",
+        "description": "Fetch every message a search returned, with its attachments.",
+        "phases": [
+            {
+                "phase_id": "fetch",
+                "steps": [
+                    {
+                        "step_id": "fetch",
+                        "step_kind": "connector",
+                        "connector_id": "extension.acme.storage",
+                        "override": {"connector": {"extension_id": "acme.storage"}},
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_a_template_carries_the_child_workflows_its_root_calls():
+    bundle = _bundle()
+    bundle["metadata"] = {"source_workflow_id": "mailbox_search"}
+    bundle["workflows"][0]["phases"][0]["steps"].append(
+        {"step_id": "call", "step_kind": "invoke_workflow",
+         "override": {"invoke_workflow": {"workflow_id": "fetch_messages"}}}
+    )
+    bundle["workflows"].append(_child())
+    bundle["dependencies"]["child_workflows"] = [{"workflow_id": "fetch_messages"}]
+
+    item = _derive(bundle).item
+
+    assert item["item_id"] == "mailbox_search"
+    assert item["includes"] == [
+        {"item_id": "fetch_messages", "name": "Fetch the messages a search found"}
+    ]
+    # The child is part of the template: nothing to provide for it.
+    assert not [r for r in item["setup_requirements"] if r["kind"] == "workflow"]
+    # Its integrations are the template's too.
+    assert "acme.storage" in item["integrations"]
+
+
+def test_a_single_workflow_includes_nothing():
+    assert _derive(_bundle()).item["includes"] == []
