@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-10-16.9c938f23",
-  "published_at": "2026-10-16T09:21:55Z",
+  "catalog_revision": "2026-10-16.221fb2d6",
+  "published_at": "2026-10-16T09:45:57Z",
   "items": [
     {
       "item_id": "imap_mailbox_search",
@@ -28,17 +28,18 @@
         }
       ],
       "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
       "compatible_flow_steward": {
-        "min": "0.7.15",
+        "min": "0.7.16",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/1a50874c0628081cf8569ba5e9c9a2cd21e02935/workflows/email/imap_mailbox_search.yaml",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/6a508871a14d34bb85b6d356b8757b74e9fadd8e/workflows/email/imap_mailbox_search_1_1_0.yaml",
       "workflow_yaml_bytes": 2289,
       "workflow_yaml_sha256": "4d4bcfd91015489730fe542f384e56a2a124d5cd963ad26aaca65025038bca20",
       "publication_status": "published",
       "verification_status": "verified",
-      "added_at": "2026-10-16T09:21:55Z",
-      "updated_at": "2026-10-16T09:21:55Z"
+      "added_at": "2026-10-16T09:45:57Z",
+      "updated_at": "2026-10-16T09:45:57Z"
     }
   ],
   "integration_labels": {
