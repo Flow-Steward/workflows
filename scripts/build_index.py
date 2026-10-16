@@ -37,7 +37,10 @@ CATEGORIES_FILE = "categories.json"
 INDEX_FILE = "index.json"
 
 SCHEMA_VERSION = "workflow_template_catalog/v1"
-BUNDLE_SCHEMA_VERSION = "platform.workflow_bundle.v1"
+# The final workflow format: root steps, groups, For each containers and one
+# execution_graph per workflow. A phase-based v1 export is refused, as Flow
+# Steward refuses to import it.
+BUNDLE_SCHEMA_VERSION = "platform.workflow_bundle.v2"
 
 # Flow Steward's own ceilings (core/infrastructure/static_catalog/settings.py).
 MAX_WORKFLOW_YAML_BYTES = 2 * 1024 * 1024
@@ -126,10 +129,9 @@ def _summary(description: str) -> str:
 
 
 def _steps(workflow: dict[str, Any]):
-    for phase in workflow.get("phases") or []:
-        for step in (phase or {}).get("steps") or []:
-            if isinstance(step, dict):
-                yield step
+    for step in workflow.get("steps") or []:
+        if isinstance(step, dict):
+            yield step
 
 
 def _step_extension_id(step: dict[str, Any]) -> str:
@@ -276,14 +278,23 @@ def derive_entry(
     except (UnicodeDecodeError, yaml.YAMLError) as exc:
         raise CatalogError(f"{rel_path}: not valid YAML ({exc})") from exc
     if not isinstance(bundle, dict) or bundle.get("schema_version") != BUNDLE_SCHEMA_VERSION:
+        found = bundle.get("schema_version") if isinstance(bundle, dict) else None
         raise CatalogError(
-            f"{rel_path}: not a Flow Steward export (schema_version {BUNDLE_SCHEMA_VERSION})"
+            f"{rel_path}: not a Flow Steward export (schema_version {BUNDLE_SCHEMA_VERSION}, "
+            f"found {found or 'none'}); a phase-based v1 export is not accepted, "
+            "export the workflow again from a current Flow Steward"
         )
     workflows = [w for w in bundle.get("workflows") or [] if isinstance(w, dict)]
     if not workflows:
         raise CatalogError(f"{rel_path}: carries no workflow")
     workflow, children, structure_problems = _template_parts(bundle, workflows)
     problems.extend(structure_problems)
+    for each in workflows:
+        if "phases" in each or any("phase_id" in step for step in _steps(each)):
+            problems.append(
+                f"workflow '{_text(each.get('workflow_id'))}' is phase-based; "
+                "export it again from a current Flow Steward"
+            )
 
     item_id = _text(workflow.get("workflow_id"))
     version = _text(workflow.get("version"))
@@ -332,17 +343,17 @@ def derive_entry(
             }
         )
     # A connection is exported by an id only its author's project knows. Its sources
-    # name the steps using it, and a step names its extension, so the requirement can
-    # say which account the importer must connect.
+    # name the steps using it (`<step_id>.<field>`), and a step names its extension,
+    # so the requirement can say which account the importer must connect.
     step_extension = {
         _text(step.get("step_id")): _step_extension_id(step) for step in _steps(workflow)
     }
     connection_labels: list[str] = []
     for row in dependencies.get("project_connections") or []:
         extension_ids = {
-            step_extension.get(parts[1], "")
+            step_extension.get(parts[0], "")
             for source in (row or {}).get("sources") or []
-            if len(parts := _text(source).split(".")) >= 3
+            if len(parts := _text(source).split(".")) >= 2
         } - {""}
         names = sorted(labels.get(extension_id, extension_id) for extension_id in extension_ids)
         label = f"{' / '.join(names)} connection" if names else "Project connection"

@@ -26,24 +26,34 @@ def _bundle(**workflow_overrides) -> dict:
         "trigger": {},
         "settings": {},
         "tags": [],
-        "phases": [
+        "steps": [
             {
-                "phase_id": "start",
-                "steps": [
-                    {
-                        "step_id": "read_mailbox",
-                        "step_kind": "connector",
-                        "connector_id": "extension.acme.mailbox",
-                        "connector_install_id": "9204647a-0000-4000-8000-000000000001",
-                        "override": {"connector": {"extension_id": "acme.mailbox"}},
-                    }
-                ],
-            }
+                "step_id": "read_mailbox",
+                "step_kind": "connector",
+                "connector_id": "extension.acme.mailbox",
+                "connector_install_id": "9204647a-0000-4000-8000-000000000001",
+                "override": {"connector": {"extension_id": "acme.mailbox"}},
+            },
+            {"step_id": "done", "step_kind": "stop_success"},
         ],
+        "groups": [],
+        "for_each": [],
+        "execution_graph": {
+            "schema_version": 1,
+            "entry": {"kind": "step", "id": "read_mailbox"},
+            "edges": [
+                {
+                    "source": {"kind": "step", "id": "read_mailbox"},
+                    "outcome": {"name": "success"},
+                    "target": {"kind": "step", "id": "done"},
+                    "rework": False,
+                }
+            ],
+        },
     }
     workflow.update(workflow_overrides)
     return {
-        "schema_version": "platform.workflow_bundle.v1",
+        "schema_version": "platform.workflow_bundle.v2",
         "kind": "workflow_bundle",
         "metadata": {},
         "workflows": [workflow],
@@ -64,7 +74,7 @@ def _bundle(**workflow_overrides) -> dict:
                     "connection_ref": "conn_1",
                     "display_name": "conn_1",
                     "required": True,
-                    "sources": ["start.read_mailbox.connection_binding"],
+                    "sources": ["read_mailbox.connection_binding"],
                 }
             ],
         },
@@ -136,7 +146,7 @@ def test_the_install_id_is_never_a_label():
             "does not call: stray",
         ),
         (
-            lambda b: b["workflows"][0]["phases"][0]["steps"].append(
+            lambda b: b["workflows"][0]["steps"].append(
                 {"step_id": "call", "step_kind": "invoke_workflow",
                  "override": {"invoke_workflow": {"workflow_id": "missing_child"}}}
             ),
@@ -289,17 +299,12 @@ def _child(workflow_id: str = "fetch_messages") -> dict:
         "version": "1.0.0",
         "display_name": "Fetch the messages a search found",
         "description": "Fetch every message a search returned, with its attachments.",
-        "phases": [
+        "steps": [
             {
-                "phase_id": "fetch",
-                "steps": [
-                    {
-                        "step_id": "fetch",
-                        "step_kind": "connector",
-                        "connector_id": "extension.acme.storage",
-                        "override": {"connector": {"extension_id": "acme.storage"}},
-                    }
-                ],
+                "step_id": "fetch",
+                "step_kind": "connector",
+                "connector_id": "extension.acme.storage",
+                "override": {"connector": {"extension_id": "acme.storage"}},
             }
         ],
     }
@@ -308,7 +313,7 @@ def _child(workflow_id: str = "fetch_messages") -> dict:
 def test_a_template_carries_the_child_workflows_its_root_calls():
     bundle = _bundle()
     bundle["metadata"] = {"source_workflow_id": "mailbox_search"}
-    bundle["workflows"][0]["phases"][0]["steps"].append(
+    bundle["workflows"][0]["steps"].append(
         {"step_id": "call", "step_kind": "invoke_workflow",
          "override": {"invoke_workflow": {"workflow_id": "fetch_messages"}}}
     )
@@ -329,3 +334,32 @@ def test_a_template_carries_the_child_workflows_its_root_calls():
 
 def test_a_single_workflow_includes_nothing():
     assert _derive(_bundle()).item["includes"] == []
+
+
+def test_a_phase_based_v1_export_is_refused():
+    bundle = _bundle()
+    bundle["schema_version"] = "platform.workflow_bundle.v1"
+    with pytest.raises(builder.CatalogError, match="phase-based v1 export is not accepted"):
+        _derive(bundle)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda w: w.update(phases=[{"phase_id": "start", "steps": []}]),
+        lambda w: w["steps"][0].update(phase_id="start"),
+    ],
+)
+def test_a_phase_based_workflow_in_a_v2_file_is_refused(mutate):
+    bundle = _bundle()
+    mutate(bundle["workflows"][0])
+    with pytest.raises(builder.CatalogError, match="is phase-based"):
+        _derive(bundle)
+
+
+def test_every_published_file_is_a_final_workflow_export():
+    categories = builder.load_categories()
+    for rel_path in builder.workflow_files():
+        raw = (builder.ROOT / rel_path).read_bytes()
+        entry = builder.derive_entry(rel_path, raw, categories=categories, url=URL)
+        assert entry.item["item_id"]

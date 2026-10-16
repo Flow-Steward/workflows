@@ -26,6 +26,8 @@ The category is your choice; reviewers only check that it is one of the list.
 
 ### What the check refuses
 
+- an export that is not `platform.workflow_bundle.v2` (a phase-based v1 export, or a
+  workflow that still carries phases: export it again from a current Flow Steward);
 - a workflow that calls another workflow which is not in the file (export it with
   child workflows);
 - a file carrying a workflow its main workflow does not call (one file is one
