@@ -26,24 +26,34 @@ def _bundle(**workflow_overrides) -> dict:
         "trigger": {},
         "settings": {},
         "tags": [],
-        "phases": [
+        "steps": [
             {
-                "phase_id": "start",
-                "steps": [
-                    {
-                        "step_id": "read_mailbox",
-                        "step_kind": "connector",
-                        "connector_id": "extension.acme.mailbox",
-                        "connector_install_id": "9204647a-0000-4000-8000-000000000001",
-                        "override": {"connector": {"extension_id": "acme.mailbox"}},
-                    }
-                ],
-            }
+                "step_id": "read_mailbox",
+                "step_kind": "connector",
+                "connector_id": "extension.acme.mailbox",
+                "connector_install_id": "9204647a-0000-4000-8000-000000000001",
+                "override": {"connector": {"extension_id": "acme.mailbox"}},
+            },
+            {"step_id": "done", "step_kind": "stop_success"},
         ],
+        "groups": [],
+        "for_each": [],
+        "execution_graph": {
+            "schema_version": 1,
+            "entry": {"kind": "step", "id": "read_mailbox"},
+            "edges": [
+                {
+                    "source": {"kind": "step", "id": "read_mailbox"},
+                    "outcome": {"name": "success"},
+                    "target": {"kind": "step", "id": "done"},
+                    "rework": False,
+                }
+            ],
+        },
     }
     workflow.update(workflow_overrides)
     return {
-        "schema_version": "platform.workflow_bundle.v1",
+        "schema_version": "platform.workflow_bundle.v2",
         "kind": "workflow_bundle",
         "metadata": {},
         "workflows": [workflow],
@@ -64,7 +74,7 @@ def _bundle(**workflow_overrides) -> dict:
                     "connection_ref": "conn_1",
                     "display_name": "conn_1",
                     "required": True,
-                    "sources": ["start.read_mailbox.connection_binding"],
+                    "sources": ["read_mailbox.connection_binding"],
                 }
             ],
         },
@@ -117,8 +127,22 @@ def test_the_exporting_version_is_the_minimum_compatible_version():
     assert _derive(bundle).item["compatible_flow_steward"] == {"min": "1.2.0", "max": ""}
 
 
-def test_an_export_without_a_version_sets_no_compatibility():
-    assert "compatible_flow_steward" not in _derive(_bundle()).item
+@pytest.mark.parametrize("exported", ["0.7.15", "0.3.0", "", "not-a-version"])
+def test_no_template_claims_a_flow_steward_that_cannot_import_v2(exported):
+    bundle = _bundle()
+    bundle["metadata"] = {"flow_steward_version": exported}
+    assert _derive(bundle).item["compatible_flow_steward"] == {
+        "min": builder.MIN_FLOW_STEWARD_FOR_BUNDLE,
+        "max": "",
+    }
+
+
+def test_the_compatibility_floor_is_the_first_release_after_the_v1_only_ones():
+    assert builder.MIN_FLOW_STEWARD_FOR_BUNDLE == "0.7.16"
+
+
+def test_every_item_names_its_bundle_schema():
+    assert _derive(_bundle()).item["bundle_schema"] == "platform.workflow_bundle.v2"
 
 
 def test_the_install_id_is_never_a_label():
@@ -136,7 +160,7 @@ def test_the_install_id_is_never_a_label():
             "does not call: stray",
         ),
         (
-            lambda b: b["workflows"][0]["phases"][0]["steps"].append(
+            lambda b: b["workflows"][0]["steps"].append(
                 {"step_id": "call", "step_kind": "invoke_workflow",
                  "override": {"invoke_workflow": {"workflow_id": "missing_child"}}}
             ),
@@ -289,17 +313,12 @@ def _child(workflow_id: str = "fetch_messages") -> dict:
         "version": "1.0.0",
         "display_name": "Fetch the messages a search found",
         "description": "Fetch every message a search returned, with its attachments.",
-        "phases": [
+        "steps": [
             {
-                "phase_id": "fetch",
-                "steps": [
-                    {
-                        "step_id": "fetch",
-                        "step_kind": "connector",
-                        "connector_id": "extension.acme.storage",
-                        "override": {"connector": {"extension_id": "acme.storage"}},
-                    }
-                ],
+                "step_id": "fetch",
+                "step_kind": "connector",
+                "connector_id": "extension.acme.storage",
+                "override": {"connector": {"extension_id": "acme.storage"}},
             }
         ],
     }
@@ -308,7 +327,7 @@ def _child(workflow_id: str = "fetch_messages") -> dict:
 def test_a_template_carries_the_child_workflows_its_root_calls():
     bundle = _bundle()
     bundle["metadata"] = {"source_workflow_id": "mailbox_search"}
-    bundle["workflows"][0]["phases"][0]["steps"].append(
+    bundle["workflows"][0]["steps"].append(
         {"step_id": "call", "step_kind": "invoke_workflow",
          "override": {"invoke_workflow": {"workflow_id": "fetch_messages"}}}
     )
@@ -329,3 +348,109 @@ def test_a_template_carries_the_child_workflows_its_root_calls():
 
 def test_a_single_workflow_includes_nothing():
     assert _derive(_bundle()).item["includes"] == []
+
+
+@pytest.mark.parametrize("schema", ["platform.workflow_bundle.v1", "", None, 2])
+def test_an_export_that_is_not_v2_is_refused(schema):
+    bundle = _bundle()
+    bundle["schema_version"] = schema
+    with pytest.raises(builder.CatalogError) as raised:
+        _derive(bundle)
+    message = str(raised.value)
+    assert "accepts platform.workflow_bundle.v2 only" in message
+    assert "phase-based v1 export is not accepted" in message
+
+
+def test_the_v1_refusal_names_the_schema_it_found():
+    bundle = _bundle()
+    bundle["schema_version"] = "platform.workflow_bundle.v1"
+    with pytest.raises(builder.CatalogError, match="schema_version is platform.workflow_bundle.v1"):
+        _derive(bundle)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "where"),
+    [
+        (lambda w: w.update(phases=[{"phase_id": "start", "steps": []}]), "(phases)"),
+        (lambda w: w.update(phase_id="start"), "(phase_id)"),
+        (lambda w: w["steps"][0].update(phase_id="start"), "steps.read_mailbox.phase_id"),
+        (lambda w: w["groups"].append({"group_id": "g", "phase_id": "start"}), "groups.g.phase_id"),
+        (
+            lambda w: w["for_each"].append({"for_each_id": "each", "phase_id": "start"}),
+            "for_each.each.phase_id",
+        ),
+    ],
+)
+def test_a_phase_based_workflow_in_a_v2_file_is_refused(mutate, where):
+    bundle = _bundle()
+    mutate(bundle["workflows"][0])
+    with pytest.raises(builder.CatalogError, match="is phase-based") as raised:
+        _derive(bundle)
+    assert where in str(raised.value)
+    assert "export it again from a current Flow Steward" in str(raised.value)
+
+
+def _v1_bundle() -> dict:
+    bundle = _bundle()
+    workflow = bundle["workflows"][0]
+    steps = workflow.pop("steps")
+    for key in ("groups", "for_each", "execution_graph"):
+        workflow.pop(key)
+    workflow["phases"] = [{"phase_id": "start", "steps": steps}]
+    bundle["schema_version"] = "platform.workflow_bundle.v1"
+    return bundle
+
+
+def test_a_v1_file_is_retired_by_the_pull_request_that_adds_its_v2_export(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _v1_bundle())
+    subprocess.run(["git", "branch", "-q", "base"], cwd=repo, check=True)
+    (repo / "workflows/email/mailbox_search.yaml").unlink()
+    _commit(repo, "workflows/email/mailbox_search_1_1_0.yaml", _bundle(version="1.1.0"))
+
+    assert builder.published_file_changes("base") == []
+    assert builder.main(["--check", "--base", "base", "--repository", "a/b"]) == 0
+
+
+def test_a_v1_file_may_not_be_rewritten_in_place(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _v1_bundle())
+    subprocess.run(["git", "branch", "-q", "base"], cwd=repo, check=True)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle(version="1.1.0"))
+
+    assert builder.published_file_changes("base") == ["workflows/email/mailbox_search.yaml"]
+
+
+def test_a_published_v2_file_may_not_be_removed(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle())
+    _commit(repo, "workflows/inventory/stock.yaml", _bundle(workflow_id="stock_sync"))
+    subprocess.run(["git", "branch", "-q", "base"], cwd=repo, check=True)
+    (repo / "workflows/inventory/stock.yaml").unlink()
+    subprocess.run(["git", "commit", "-qam", "remove"], cwd=repo, check=True)
+
+    assert builder.published_file_changes("base") == ["workflows/inventory/stock.yaml"]
+
+
+def test_a_published_v2_file_may_not_be_renamed(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle())
+    subprocess.run(["git", "branch", "-q", "base"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "mv", "workflows/email/mailbox_search.yaml", "workflows/email/renamed.yaml"],
+        cwd=repo, check=True,
+    )
+    subprocess.run(["git", "commit", "-qm", "rename"], cwd=repo, check=True)
+
+    assert builder.published_file_changes("base") == ["workflows/email/mailbox_search.yaml"]
+
+
+def test_every_published_file_is_a_final_workflow_export():
+    categories = builder.load_categories()
+    files = builder.workflow_files()
+    assert files
+    for rel_path in files:
+        raw = (builder.ROOT / rel_path).read_bytes()
+        entry = builder.derive_entry(rel_path, raw, categories=categories, url=URL)
+        assert entry.item["item_id"]
+        assert entry.item["bundle_schema"] == builder.BUNDLE_SCHEMA_VERSION

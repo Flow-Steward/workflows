@@ -37,7 +37,17 @@ CATEGORIES_FILE = "categories.json"
 INDEX_FILE = "index.json"
 
 SCHEMA_VERSION = "workflow_template_catalog/v1"
-BUNDLE_SCHEMA_VERSION = "platform.workflow_bundle.v1"
+# The final workflow format: root steps, groups, For each containers and one
+# execution_graph per workflow. A phase-based v1 export is refused, as Flow
+# Steward refuses to import it.
+BUNDLE_SCHEMA_VERSION = "platform.workflow_bundle.v2"
+# The first Flow Steward release that imports v2 bundles. Releases up to 0.7.15
+# import only phase-based v1 bundles, so no v2 template may claim them, whatever
+# version its export names.
+MIN_FLOW_STEWARD_FOR_BUNDLE = "0.7.16"
+# Workflow fields of the phase-based format. Flow Steward refuses a v2 bundle that
+# still carries any of them, so the catalog refuses it first.
+_PHASE_KEYS = ("phases", "phase_id")
 
 # Flow Steward's own ceilings (core/infrastructure/static_catalog/settings.py).
 MAX_WORKFLOW_YAML_BYTES = 2 * 1024 * 1024
@@ -126,10 +136,21 @@ def _summary(description: str) -> str:
 
 
 def _steps(workflow: dict[str, Any]):
-    for phase in workflow.get("phases") or []:
-        for step in (phase or {}).get("steps") or []:
-            if isinstance(step, dict):
-                yield step
+    for step in workflow.get("steps") or []:
+        if isinstance(step, dict):
+            yield step
+
+
+def _phase_fields(workflow: dict[str, Any]) -> list[str]:
+    """Where a workflow still carries the phase-based format, as `steps.<id>.phase_id`."""
+    found = [key for key in _PHASE_KEYS if key in workflow]
+    for collection, id_key in (("steps", "step_id"), ("groups", "group_id"), ("for_each", "for_each_id")):
+        for index, item in enumerate(workflow.get(collection) or []):
+            if not isinstance(item, dict):
+                continue
+            name = _text(item.get(id_key)) or f"[{index}]"
+            found.extend(f"{collection}.{name}.{key}" for key in _PHASE_KEYS if key in item)
+    return found
 
 
 def _step_extension_id(step: dict[str, Any]) -> str:
@@ -229,11 +250,15 @@ def _triggers(workflow: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
 
 
 def _compatibility(metadata: dict[str, Any]) -> dict[str, Any]:
-    """The Flow Steward the file was exported from is the oldest it is known to work on."""
+    """The oldest Flow Steward the file works on.
+
+    That is the release it was exported from, but never one older than the first
+    release that imports its bundle schema.
+    """
     version = _text(metadata.get("flow_steward_version"))
-    if not _SEMVER.match(version):
-        return {}
-    return {"compatible_flow_steward": {"min": version, "max": ""}}
+    floor = MIN_FLOW_STEWARD_FOR_BUNDLE
+    minimum = version if _SEMVER.match(version) and _semver_key(version) > _semver_key(floor) else floor
+    return {"compatible_flow_steward": {"min": minimum, "max": ""}}
 
 
 def _secret_values(node: Any, path: str = "") -> list[str]:
@@ -276,14 +301,24 @@ def derive_entry(
     except (UnicodeDecodeError, yaml.YAMLError) as exc:
         raise CatalogError(f"{rel_path}: not valid YAML ({exc})") from exc
     if not isinstance(bundle, dict) or bundle.get("schema_version") != BUNDLE_SCHEMA_VERSION:
+        found = _text(bundle.get("schema_version")) if isinstance(bundle, dict) else ""
         raise CatalogError(
-            f"{rel_path}: not a Flow Steward export (schema_version {BUNDLE_SCHEMA_VERSION})"
+            f"{rel_path}: schema_version is {found or 'missing'}, the catalog accepts "
+            f"{BUNDLE_SCHEMA_VERSION} only; a phase-based v1 export is not accepted, "
+            "export the workflow again from a current Flow Steward"
         )
     workflows = [w for w in bundle.get("workflows") or [] if isinstance(w, dict)]
     if not workflows:
         raise CatalogError(f"{rel_path}: carries no workflow")
     workflow, children, structure_problems = _template_parts(bundle, workflows)
     problems.extend(structure_problems)
+    for each in workflows:
+        phase_fields = _phase_fields(each)
+        if phase_fields:
+            problems.append(
+                f"workflow '{_text(each.get('workflow_id'))}' is phase-based "
+                f"({', '.join(phase_fields)}); export it again from a current Flow Steward"
+            )
 
     item_id = _text(workflow.get("workflow_id"))
     version = _text(workflow.get("version"))
@@ -332,17 +367,17 @@ def derive_entry(
             }
         )
     # A connection is exported by an id only its author's project knows. Its sources
-    # name the steps using it, and a step names its extension, so the requirement can
-    # say which account the importer must connect.
+    # name the steps using it (`<step_id>.<field>`), and a step names its extension,
+    # so the requirement can say which account the importer must connect.
     step_extension = {
         _text(step.get("step_id")): _step_extension_id(step) for step in _steps(workflow)
     }
     connection_labels: list[str] = []
     for row in dependencies.get("project_connections") or []:
         extension_ids = {
-            step_extension.get(parts[1], "")
+            step_extension.get(parts[0], "")
             for source in (row or {}).get("sources") or []
-            if len(parts := _text(source).split(".")) >= 3
+            if len(parts := _text(source).split(".")) >= 2
         } - {""}
         names = sorted(labels.get(extension_id, extension_id) for extension_id in extension_ids)
         label = f"{' / '.join(names)} connection" if names else "Project connection"
@@ -387,6 +422,9 @@ def derive_entry(
             }
             for child in children
         ],
+        # Which bundle format the file is, so Flow Steward can tell a template it
+        # imports from one it cannot. Every published file is this one.
+        "bundle_schema": BUNDLE_SCHEMA_VERSION,
         **_compatibility(metadata),
         "workflow_yaml_url": url,
         "workflow_yaml_bytes": len(raw),
@@ -521,10 +559,37 @@ def render(index: dict[str, Any]) -> str:
     return text
 
 
+def _retired_bundle(revision: str, path: str) -> bool:
+    """Whether *path* at *revision* is an export of an older bundle format.
+
+    No current Flow Steward imports such a file and the builder refuses it, so the
+    pull request that adds its re-export removes it. Its pinned URL keeps serving it.
+    """
+    try:
+        bundle = yaml.safe_load(_git("show", f"{revision}:{path}"))
+    except (subprocess.CalledProcessError, yaml.YAMLError):
+        return False
+    return isinstance(bundle, dict) and bundle.get("schema_version") != BUNDLE_SCHEMA_VERSION
+
+
 def published_file_changes(base: str) -> list[str]:
-    """Published files a pull request modifies, renames or deletes (all refused)."""
-    out = _git("diff", "--name-status", "--diff-filter=MDR", f"{base}...HEAD", "--", WORKFLOWS_DIR)
-    return [line.split("\t", 1)[-1] for line in out.splitlines() if line.strip()]
+    """Published files a pull request modifies, renames or deletes (all refused).
+
+    The one exception is removing a file of an older bundle format.
+    """
+    fork = _git("merge-base", base, "HEAD")
+    out = _git(
+        "diff", "--name-status", "--no-renames", "--diff-filter=MD", f"{fork}..HEAD", "--", WORKFLOWS_DIR
+    )
+    changed: list[str] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        status, path = line.split("\t", 1)
+        if status == "D" and _retired_bundle(fork, path):
+            continue
+        changed.append(path)
+    return changed
 
 
 def main(argv: list[str] | None = None) -> int:
