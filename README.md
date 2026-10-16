@@ -37,7 +37,8 @@ The category is your choice; reviewers only check that it is one of the list.
   description shorter than 40 characters;
 - a version that is not semantic (`1.0.0`);
 - a value under a key such as `password`, `api_key` or `secret`;
-- a change to a file that is already published.
+- a change to a file that is already published (removing a phase-based v1 file is
+  the one exception, see below).
 
 ### Updating a published workflow
 
@@ -45,6 +46,10 @@ Published files never change, because every catalog entry pins its file's exact
 bytes. Raise `version` in Flow Steward, export again and add the new file next to
 the old one, for example `workflows/email/mailbox_search_1_1_0.yaml`. The catalog
 lists the highest version; older files keep working for anyone who pinned them.
+
+A phase-based `platform.workflow_bundle.v1` file is the one file that may go: no
+current Flow Steward imports it and the check refuses it, so the pull request that
+adds its v2 export under a new name removes it. Its pinned URL keeps serving it.
 
 ## What the catalog shows, and where it comes from
 
@@ -57,6 +62,8 @@ lists the highest version; older files keep working for anyone who pinned them.
 | Trigger | how the workflow can be started (`manual`, `schedule`, `webhook`, `sub_workflow`) |
 | Includes | the child workflows the file carries; they are created with it |
 | Requires | project connections, tools and AI models it needs |
+| Bundle schema (`bundle_schema`) | `schema_version` of the export; always `platform.workflow_bundle.v2` |
+| Compatible Flow Steward | the version the file was exported from, never older than 0.7.16, the first Flow Steward that imports v2 bundles |
 | Added, updated | the commit that added the first version, and the one that added this version |
 | Download URL, size, SHA-256 | the file and the commit that last changed it |
 
