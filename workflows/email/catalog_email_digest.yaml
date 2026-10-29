@@ -96,9 +96,9 @@ workflows:
       request: state.request
     output_mapping_jsonb:
       digest: state.digest
-      email_action_items: state.action_items
-      email_dates: state.dates_to_watch
-      email_reply_drafts: state.reply_drafts
+      action_items: state.action_items
+      dates_to_watch: state.dates_to_watch
+      reply_drafts: state.reply_drafts
     error_policy:
       on_error: route_to_step
     optional: false
@@ -317,17 +317,17 @@ definitions:
       type: text
       description: Digest of the messages, most important first, 3-8 bullet-style sentences.
       required: true
-    - name: email_action_items
+    - name: action_items
       type: array
       description: The reader's action items.
       required: false
       contract_id: catalog.email_action_items.v1
-    - name: email_dates
+    - name: dates_to_watch
       type: array
       description: Dates and deadlines.
       required: false
       contract_id: catalog.email_dates.v1
-    - name: email_reply_drafts
+    - name: reply_drafts
       type: array
       description: Unsent reply drafts.
       required: false

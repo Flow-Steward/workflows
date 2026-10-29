@@ -163,7 +163,7 @@ workflows:
       issue_date: state.issue_date
       due_date: state.due_date
       currency: state.currency
-      invoice_line_items: state.line_items
+      line_items: state.line_items
       subtotal: state.subtotal
       tax: state.tax
       total: state.total
@@ -614,7 +614,7 @@ definitions:
       type: text
       description: Currency code or symbol as printed.
       required: false
-    - name: invoice_line_items
+    - name: line_items
       type: array
       description: Line items as printed.
       required: false

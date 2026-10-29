@@ -153,7 +153,7 @@ workflows:
       authors: state.authors
       research_question: state.research_question
       method: state.method
-      paper_findings: state.findings
+      findings: state.findings
       limitations: state.limitations
       relevance: state.relevance
     error_policy:
@@ -462,7 +462,7 @@ definitions:
       type: text
       description: How it was investigated.
       required: false
-    - name: paper_findings
+    - name: findings
       type: array
       description: Findings with quotes.
       required: false

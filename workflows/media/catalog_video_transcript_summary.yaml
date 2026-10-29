@@ -96,7 +96,7 @@ workflows:
       request: state.request
     output_mapping_jsonb:
       summary: state.summary
-      transcript_outline: state.outline
+      outline: state.outline
       takeaways: state.takeaways
       open_questions: state.open_questions
     error_policy:
@@ -317,7 +317,7 @@ definitions:
       type: text
       description: Focused summary of 4-8 sentences.
       required: true
-    - name: transcript_outline
+    - name: outline
       type: array
       description: Ordered topics with verbatim quotes.
       required: true
