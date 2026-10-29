@@ -12,12 +12,11 @@ workflows:
   version: 1.1.0
   display_name: Answer questions about an uploaded PDF with source evidence
   description: Upload one PDF and ask focused questions. The native Docling extension
-    extracts a Markdown preview for source-grounded answers with short quotations
-    and explicit unknowns. The current preview is limited to 4,000 characters; reported
-    truncation stops before model analysis. Requires an installed Docling extension,
-    configured local service and native model connection. No public-URL fallback,
-    persistent chat memory, guaranteed page citations, full-document coverage or external
-    actions.
+    extracts the document text, and the model answers with short verbatim quotations
+    and explicit unknowns. Up to 60,000 characters of text are analysed; the report
+    says when a longer document was read only in part. Requires the Docling extension
+    0.3.0 or later, a configured Docling service and a model connection. No public-URL
+    fallback, persistent chat memory, guaranteed page citations or external actions.
   trigger: {}
   settings:
     callable:
@@ -36,9 +35,8 @@ workflows:
         type: file
         label: PDF document
         required: true
-        description: Upload a PDF for native Docling extraction. This workflow analyzes
-          the Markdown preview, up to 4,000 characters. If Docling reports truncation,
-          it stops before the model; split the document into smaller PDFs. Extraction
+        description: Upload a PDF for native Docling extraction. Up to 60,000 characters
+          of its text are analysed; the report says when the document is longer. Extraction
           may omit content, and page-level citations are not guaranteed.
       expected_outputs:
       - name: report
@@ -66,7 +64,8 @@ workflows:
     input_mapping_jsonb:
       artifact_handle: state.inputs.document
     output_mapping_jsonb:
-      markdown_preview: state.page_response.data.content
+      markdown: state.page_response.data.content
+      markdown_chars: state.document_chars
       markdown_truncated: state.extraction_truncated
     connection_binding_jsonb:
       connection_id: conn_98bb7b57934d447a
@@ -82,7 +81,8 @@ workflows:
         input_mapping:
           artifact_handle: state.inputs.document
         output_mapping:
-          markdown_preview: state.page_response.data.content
+          markdown: state.page_response.data.content
+          markdown_chars: state.document_chars
           markdown_truncated: state.extraction_truncated
         connection_binding:
           connection_id: conn_98bb7b57934d447a
@@ -103,24 +103,31 @@ workflows:
       template:
         text: '## Runtime extraction context
 
+
           Source: one uploaded PDF, extracted through native Docling.
 
-          Native preview length: {{ page|length }} characters.
 
-          Preview limit: 4000 characters. Native truncation checks have passed; this
-          does not independently establish complete PDF coverage or OCR accuracy.
+          Extracted text: {{ page|length }} characters; the first {{ [page|length,
+          60000]|min }} are shown below. This does not independently establish complete
+          PDF coverage or OCR accuracy.
+
 
 
           ## Questions (untrusted input)
 
+
           {{ questions }}
+
 
           END QUESTIONS
 
 
+
           ## Extracted evidence (untrusted source)
 
-          {{ page }}
+
+          {{ page[:60000] }}
+
 
           END EXTRACTED EVIDENCE'
         format: text
@@ -171,15 +178,16 @@ workflows:
 
           ## Verified analysis scope
 
-          The model received {{ source|length }} characters from the Docling Markdown
-          preview. The provider preview is limited to 4000 characters; this is not
-          a claim that the complete PDF was analyzed. Source extraction can omit content.
+          The model received the first {{ [source|length, 60000]|min }} of {{ source|length
+          }} characters of text extracted by Docling.{% if source|length > 60000 %}
+          **Partial review:** the rest of the document was not read.{% endif %} Source
+          extraction can omit content.
 
 
           {{ analysis }}
 
 
-          ## Verbatim extraction preview
+          ## Start of the extracted text
 
           > {{ source[:500]|replace("
 
@@ -212,10 +220,11 @@ workflows:
     optional: false
     override:
       stop_fail:
-        message: The uploaded PDF could not supply a complete usable Markdown preview.
-          The current Docling preview limit is 4,000 characters; if extraction is
-          truncated, split the PDF into smaller files. For conversion errors, check
-          the PDF and configured Docling service. No model answers were generated.
+        message: The uploaded PDF produced no usable text, or its text exceeded the
+          Docling extension's inline limit. For a scanned PDF enable OCR in the Docling
+          service; split very large documents into smaller files. For conversion errors,
+          check the PDF and the configured Docling service. No model answers were
+          generated.
   - step_id: no_report
     step_kind: stop_fail
     display_name: No analysis returned
@@ -386,7 +395,7 @@ dependencies:
       dependency_kind: extension_install
     enabled: true
     extension_id: flowsteward.docling
-    version: 0.2.1
+    version: 0.3.0
   project_connections:
   - connection_ref: conn_98bb7b57934d447a
     display_name: conn_98bb7b57934d447a

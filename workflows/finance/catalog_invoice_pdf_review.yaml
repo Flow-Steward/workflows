@@ -12,8 +12,7 @@ workflows:
   display_name: Review an uploaded invoice PDF
   description: Upload an invoice PDF. Docling extracts the text, the model reads the header fields, line items and printed totals, and fixed rules check
     that quantity x price, the line sum, subtotal + tax and the total agree. Returns the fields as separate outputs and a report that flags missing fields
-    and arithmetic differences. Reads the first 4,000 characters Docling provides and says so when the document is longer. Nothing is approved, paid or
-    posted.
+    and arithmetic differences. Reads up to 20,000 characters of invoice text and says so when the document is longer. Nothing is approved, paid or posted.
   trigger: {}
   settings:
     callable:
@@ -95,8 +94,8 @@ workflows:
     input_mapping_jsonb: &id001
       artifact_handle: state.inputs.document
     output_mapping_jsonb: &id002
-      markdown_preview: state.document_text
-      markdown_truncated: state.document_truncated
+      markdown: state.document_text
+      markdown_chars: state.document_chars
     connection_binding_jsonb:
       connection_id: conn_98bb7b57934d447a
     error_policy:
@@ -137,7 +136,7 @@ workflows:
       template:
         text: 'INVOICE TEXT (untrusted source evidence, extracted from a PDF)
 
-          {{ text }}
+          {{ text[:20000] }}
 
           END INVOICE TEXT'
         format: text
@@ -271,8 +270,9 @@ workflows:
 
           ---
 
-          Source: the uploaded PDF, {{ text|length }} characters of text from Docling.{% if truncated %} **Partial review:** Docling hands workflows only
-          the first 4,000 characters of a document, so anything after that was not read.{% endif %}
+          Source: the uploaded PDF, {{ chars|default(text|length, true)|int }} characters of text from Docling; the first {{ [text|length, 20000]|min }}
+          were analysed.{% if text|length > 20000 or (chars and chars > text|length) %} **Partial review:** the rest of the document was not read.{% endif
+          %}
 
           This review does not approve, pay or post the invoice.'
         format: markdown
@@ -333,9 +333,9 @@ workflows:
           type: text
           source: state.document_text
           required: false
-        - name: truncated
-          type: boolean
-          source: state.document_truncated
+        - name: chars
+          type: number
+          source: state.document_chars
           required: false
         result_target: state.report
     error_policy:
@@ -504,7 +504,7 @@ dependencies:
       dependency_kind: extension_install
     enabled: true
     extension_id: flowsteward.docling
-    version: 0.2.1
+    version: 0.3.0
   project_connections:
   - connection_ref: conn_98bb7b57934d447a
     display_name: conn_98bb7b57934d447a

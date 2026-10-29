@@ -11,8 +11,8 @@ workflows:
   version: 1.0.0
   display_name: Create a structured research-paper brief with evidence
   description: Upload a research paper PDF and state your research focus. Docling extracts the text and the model returns the title, authors, research question,
-    method, findings with verbatim quotes, limitations and how the paper relates to your focus. The report flags any quote the text does not contain. Docling
-    hands workflows only the first 4,000 characters, so for most papers this covers the abstract and introduction; the report says when it is partial.
+    method, findings with verbatim quotes, limitations and how the paper relates to your focus. The report flags any quote the text does not contain. Up
+    to 60,000 characters of paper text are analysed, which covers most papers; the report says when it is partial.
   trigger: {}
   settings:
     callable:
@@ -78,8 +78,8 @@ workflows:
     input_mapping_jsonb: &id001
       artifact_handle: state.inputs.document
     output_mapping_jsonb: &id002
-      markdown_preview: state.document_text
-      markdown_truncated: state.document_truncated
+      markdown: state.document_text
+      markdown_chars: state.document_chars
     connection_binding_jsonb:
       connection_id: conn_98bb7b57934d447a
     error_policy:
@@ -125,7 +125,7 @@ workflows:
 
           PAPER TEXT (untrusted source evidence, extracted from a PDF)
 
-          {{ text }}
+          {{ text[:60000] }}
 
           END PAPER TEXT'
         format: text
@@ -169,8 +169,9 @@ workflows:
           \ 'Not stated in the text read.' }}\n\n## Method\n{{ method or 'Not stated in the text read.' }}\n\n## Findings\n{% for f in (findings or [])\
           \ %}- {{ f.finding }}\n  > {{ f.quote }}{% if f.quote not in text %} ⚠ quote not found verbatim in the text{% endif %}\n{% else %}No findings\
           \ in the text read.\n{% endfor %}\n## Limitations\n{% for l in (limitations or []) %}- {{ l }}\n{% else %}None stated.\n{% endfor %}\n## Relevance\
-          \ to: {{ focus[:200] }}\n{{ relevance }}\n\n---\nSource: the uploaded PDF, {{ text|length }} characters of text from Docling.{% if truncated %}\
-          \ **Partial review:** Docling hands workflows only the first 4,000 characters of a document, so anything after that was not read.{% endif %}"
+          \ to: {{ focus[:200] }}\n{{ relevance }}\n\n---\nSource: the uploaded PDF, {{ chars|default(text|length, true)|int }} characters of text from\
+          \ Docling; the first {{ [text|length, 60000]|min }} were analysed.{% if text|length > 60000 or (chars and chars > text|length) %} **Partial review:**\
+          \ the rest of the document was not read.{% endif %}"
         format: markdown
         inputs:
         - name: title
@@ -209,9 +210,9 @@ workflows:
           type: text
           source: state.document_text
           required: false
-        - name: truncated
-          type: boolean
-          source: state.document_truncated
+        - name: chars
+          type: number
+          source: state.document_chars
           required: false
         result_target: state.report
     error_policy:
@@ -363,7 +364,7 @@ dependencies:
       dependency_kind: extension_install
     enabled: true
     extension_id: flowsteward.docling
-    version: 0.2.1
+    version: 0.3.0
   project_connections:
   - connection_ref: conn_98bb7b57934d447a
     display_name: conn_98bb7b57934d447a
