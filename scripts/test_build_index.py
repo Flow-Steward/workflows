@@ -454,3 +454,116 @@ def test_every_published_file_is_a_final_workflow_export():
         entry = builder.derive_entry(rel_path, raw, categories=categories, url=URL)
         assert entry.item["item_id"]
         assert entry.item["bundle_schema"] == builder.BUNDLE_SCHEMA_VERSION
+
+
+# ---------------------------------------------------------------------------
+# definitions: every agent, skill and contract a template uses travels with it
+# ---------------------------------------------------------------------------
+
+
+def _agent_bundle() -> dict:
+    bundle = _bundle()
+    bundle["workflows"][0]["steps"].insert(
+        0, {"step_id": "classify", "step_kind": "agent", "agent_id": "writer"}
+    )
+    bundle["dependencies"]["agents"] = [{"agent_id": "writer"}]
+    bundle["dependencies"]["skills"] = [{"skill_id": "draft"}]
+    bundle["metadata"] = {"flow_steward_version": "0.9.3"}
+    bundle["definitions"] = {
+        "agents": [
+            {
+                "agent_id": "writer",
+                "display_name": "Writer",
+                "skills": [{"skill_id": "draft", "skill_prompt": ""}],
+            }
+        ],
+        "skills": [
+            {
+                "skill_id": "draft",
+                "display_name": "Draft",
+                "expected_inputs": [{"name": "brief", "type": "json", "contract_id": "brief.v1"}],
+                "expected_outputs": [{"name": "draft", "type": "text"}],
+            }
+        ],
+        "data_contracts": [
+            {
+                "contract_id": "brief.v1",
+                "schema": {"type": "object", "properties": {"audience": {"contract_id": "audience.v1"}}},
+            },
+            {"contract_id": "audience.v1", "schema": {"type": "object"}},
+        ],
+        "guardrails": [
+            {"id": "11111111-1111-4111-8111-111111111111", "agents": ["writer"], "scope": "global"}
+        ],
+    }
+    return bundle
+
+
+def test_a_template_carrying_its_definitions_is_published():
+    entry = _derive(_agent_bundle())
+    assert entry.item["item_id"] == "mailbox_search"
+    assert {"kind": "llm", "label": "An AI model provider", "required": True} in entry.item[
+        "setup_requirements"
+    ]
+
+
+def test_definitions_need_the_first_flow_steward_that_imports_them():
+    assert _derive(_agent_bundle()).item["compatible_flow_steward"] == {
+        "min": builder.MIN_FLOW_STEWARD_FOR_DEFINITIONS,
+        "max": "",
+    }
+    bundle = _agent_bundle()
+    bundle["metadata"] = {"flow_steward_version": "1.2.0"}
+    assert _derive(bundle).item["compatible_flow_steward"]["min"] == "1.2.0"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda b: b.pop("definitions"), "agent 'writer' \\(dependencies\\) has no definition"),
+        (
+            lambda b: b["definitions"]["agents"].clear(),
+            "agent 'writer' \\(mailbox_search.classify\\) has no definition",
+        ),
+        (
+            lambda b: b["workflows"][0]["settings"].update(
+                participants=[{"participant_key": "author", "agent_id": "reviewer"}]
+            ),
+            "agent 'reviewer' \\(mailbox_search participants\\)",
+        ),
+        (lambda b: b["definitions"]["skills"].clear(), "skill 'draft' \\(dependencies\\)"),
+        (
+            lambda b: b["definitions"]["data_contracts"].pop(0),
+            "data contract 'brief.v1' \\(skill draft expected_inputs brief\\)",
+        ),
+        (
+            lambda b: b["definitions"]["data_contracts"].pop(1),
+            "data contract 'audience.v1' \\(contract brief.v1\\)",
+        ),
+        (
+            lambda b: b["definitions"]["guardrails"][0]["agents"].append("ghost"),
+            "names agent 'ghost', which is not in the file",
+        ),
+    ],
+)
+def test_a_reference_without_its_definition_is_refused(mutate, message):
+    bundle = _agent_bundle()
+    mutate(bundle)
+    with pytest.raises(builder.CatalogError, match=message):
+        _derive(bundle)
+
+
+def test_the_refusal_says_how_to_export_a_complete_file():
+    bundle = _agent_bundle()
+    bundle.pop("definitions")
+    with pytest.raises(builder.CatalogError, match="export it again from Flow Steward 0.9.4 or later"):
+        _derive(bundle)
+
+
+def test_an_extension_agent_is_provided_by_the_extension_the_file_depends_on():
+    bundle = _bundle()
+    bundle["dependencies"]["agents"] = [{"agent_id": "extension.inst-1.summarizer"}]
+    assert _derive(bundle).item["item_id"] == "mailbox_search"
+    bundle["dependencies"]["extensions"] = []
+    with pytest.raises(builder.CatalogError, match="extension.inst-1.summarizer"):
+        _derive(bundle)

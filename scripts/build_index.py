@@ -45,6 +45,10 @@ BUNDLE_SCHEMA_VERSION = "platform.workflow_bundle.v2"
 # import only phase-based v1 bundles, so no v2 template may claim them, whatever
 # version its export names.
 MIN_FLOW_STEWARD_FOR_BUNDLE = "0.7.16"
+# The first Flow Steward release whose import creates the agents, skills, data
+# contracts and guardrails a bundle carries under `definitions`. An older one
+# refuses such a file outright, so no template with definitions may claim it.
+MIN_FLOW_STEWARD_FOR_DEFINITIONS = "0.9.4"
 # Workflow fields of the phase-based format. Flow Steward refuses a v2 bundle that
 # still carries any of them, so the catalog refuses it first.
 _PHASE_KEYS = ("phases", "phase_id")
@@ -226,6 +230,102 @@ def _template_parts(
     return root, [by_id[ref] for ref in order], problems
 
 
+def _definition_ids(definitions: dict[str, Any], section: str, key: str) -> set[str]:
+    return {
+        _text(row.get(key))
+        for row in definitions.get(section) or []
+        if isinstance(row, dict) and _text(row.get(key))
+    }
+
+
+def _schema_contract_ids(node: Any) -> list[str]:
+    if isinstance(node, dict):
+        return [
+            ref
+            for key, value in node.items()
+            for ref in (
+                [_text(value)] if key == "contract_id" and _text(value) else _schema_contract_ids(value)
+            )
+        ]
+    if isinstance(node, list):
+        return [ref for value in node for ref in _schema_contract_ids(value)]
+    return []
+
+
+def _closure_problems(bundle: dict[str, Any], workflows: list[dict[str, Any]]) -> list[str]:
+    """Every agent, skill and data contract the template uses must travel with it.
+
+    A new Flow Steward has none of the author's agents, so a reference without a
+    definition stops the import until someone recreates it by hand. An extension's
+    own agent or skill is the exception: the file must then depend on an extension,
+    and installing it provides them. A skill's I/O counts, not just the dependency
+    list: a contract its fields name without the contract's schema is not delivered.
+    """
+    definitions = bundle.get("definitions") or {}
+    if not isinstance(definitions, dict):
+        return ["definitions must be an object"]
+    dependencies = bundle.get("dependencies") or {}
+    agents = _definition_ids(definitions, "agents", "agent_id")
+    skills = _definition_ids(definitions, "skills", "skill_id")
+    contracts = _definition_ids(definitions, "data_contracts", "contract_id")
+    has_extension = any(
+        _text((row or {}).get("extension_id")) for row in dependencies.get("extensions") or []
+    )
+    problems: list[str] = []
+    hint = (
+        f"export it again from Flow Steward {MIN_FLOW_STEWARD_FOR_DEFINITIONS} or later, "
+        "which carries the definitions"
+    )
+
+    def require(kind: str, ref: str, defined: set[str], where: str) -> None:
+        if not ref or ref in defined:
+            return
+        if ref.startswith("extension.") and has_extension:
+            return
+        message = f"{kind} '{ref}' ({where}) has no definition in the file; {hint}"
+        if message not in problems:
+            problems.append(message)
+
+    for row in dependencies.get("agents") or []:
+        require("agent", _text((row or {}).get("agent_id")), agents, "dependencies")
+    for workflow in workflows:
+        workflow_id = _text(workflow.get("workflow_id"))
+        participants = [
+            *(workflow.get("participants") or []),
+            *((workflow.get("settings") or {}).get("participants") or []),
+        ]
+        for row in participants:
+            require("agent", _text((row or {}).get("agent_id")), agents, f"{workflow_id} participants")
+        for step in _steps(workflow):
+            require("agent", _text(step.get("agent_id")), agents, f"{workflow_id}.{_text(step.get('step_id'))}")
+    for row in dependencies.get("skills") or []:
+        require("skill", _text((row or {}).get("skill_id")), skills, "dependencies")
+    for agent in definitions.get("agents") or []:
+        for binding in (agent or {}).get("skills") or []:
+            require("skill", _text((binding or {}).get("skill_id")), skills, f"agent {_text(agent.get('agent_id'))}")
+    for skill in definitions.get("skills") or []:
+        skill_id = _text((skill or {}).get("skill_id"))
+        for key in ("expected_inputs", "expected_outputs"):
+            for field in skill.get(key) or []:
+                require(
+                    "data contract",
+                    _text((field or {}).get("contract_id")),
+                    contracts,
+                    f"skill {skill_id} {key} {_text((field or {}).get('name'))}",
+                )
+    for contract in definitions.get("data_contracts") or []:
+        for ref in _schema_contract_ids((contract or {}).get("schema")):
+            require("data contract", ref, contracts, f"contract {_text(contract.get('contract_id'))}")
+    for rule in definitions.get("guardrails") or []:
+        for agent_id in (rule or {}).get("agents") or []:
+            if _text(agent_id) not in agents:
+                problems.append(
+                    f"guardrail '{_text(rule.get('id'))}' names agent '{_text(agent_id)}', "
+                    "which is not in the file"
+                )
+    return problems
+
+
 def _triggers(workflow: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     found: list[str] = []
     # Flow Steward records the enabled schedule / webhook / provider triggers here;
@@ -249,14 +349,14 @@ def _triggers(workflow: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     return sorted(set(found)) or ["manual"]
 
 
-def _compatibility(metadata: dict[str, Any]) -> dict[str, Any]:
+def _compatibility(metadata: dict[str, Any], *, has_definitions: bool = False) -> dict[str, Any]:
     """The oldest Flow Steward the file works on.
 
     That is the release it was exported from, but never one older than the first
-    release that imports its bundle schema.
+    release that imports its bundle schema, or its definitions when it has any.
     """
     version = _text(metadata.get("flow_steward_version"))
-    floor = MIN_FLOW_STEWARD_FOR_BUNDLE
+    floor = MIN_FLOW_STEWARD_FOR_DEFINITIONS if has_definitions else MIN_FLOW_STEWARD_FOR_BUNDLE
     minimum = version if _SEMVER.match(version) and _semver_key(version) > _semver_key(floor) else floor
     return {"compatible_flow_steward": {"min": minimum, "max": ""}}
 
@@ -336,6 +436,7 @@ def derive_entry(
         problems.append("description must say what the workflow does (at least 40 characters)")
     for leak in _secret_values(bundle):
         problems.append(f"'{leak}' holds a value; exports must not carry secrets")
+    problems.extend(_closure_problems(bundle, workflows))
     if problems:
         raise CatalogError("\n".join(f"{rel_path}: {problem}" for problem in problems))
 
@@ -425,7 +526,7 @@ def derive_entry(
         # Which bundle format the file is, so Flow Steward can tell a template it
         # imports from one it cannot. Every published file is this one.
         "bundle_schema": BUNDLE_SCHEMA_VERSION,
-        **_compatibility(metadata),
+        **_compatibility(metadata, has_definitions=bool(bundle.get("definitions"))),
         "workflow_yaml_url": url,
         "workflow_yaml_bytes": len(raw),
         "workflow_yaml_sha256": hashlib.sha256(raw).hexdigest(),

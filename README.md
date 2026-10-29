@@ -16,6 +16,11 @@ the files in `workflows/` after every merge.
 2. Export it: **Workflows → ⋯ → Export YAML**. If it calls other workflows, tick
    **Include child workflows**, so they travel in the same file and the template
    installs complete. Do not edit the file.
+
+   From Flow Steward 0.9.4 the export also carries, under `definitions`, the
+   agents, skills, data contracts and guardrails the workflow uses, so an import
+   on a new installation creates them instead of asking for each one. The agents
+   travel without a model: they use the model the importing project configures.
 3. Choose one folder from [`categories.json`](categories.json) and add the file as
    `workflows/<category>/<workflow_id>.yaml`. The list is shared with the
    [extension catalog](https://github.com/Flow-Steward/extensions), whose copy is the
@@ -37,6 +42,11 @@ The category is your choice; reviewers only check that it is one of the list.
   description shorter than 40 characters;
 - a version that is not semantic (`1.0.0`);
 - a value under a key such as `password`, `api_key` or `secret`;
+- an agent, skill or data contract the workflow uses that the file does not
+  define, including a contract a skill's input or output names, or a guardrail
+  attached to an agent outside the file (export it again from Flow Steward 0.9.4
+  or later). An extension's own agent or skill is fine when the file depends on
+  that extension: installing it provides them;
 - a change to a file that is already published (removing a phase-based v1 file is
   the one exception, see below).
 
@@ -61,9 +71,9 @@ adds its v2 export under a new name removes it. Its pinned URL keeps serving it.
 | Integration names | the extension name recorded in the export |
 | Trigger | how the workflow can be started (`manual`, `schedule`, `webhook`, `sub_workflow`) |
 | Includes | the child workflows the file carries; they are created with it |
-| Requires | project connections, tools and AI models it needs |
+| Requires | project connections, tools and AI models it needs; the agents and skills the file defines are created with it |
 | Bundle schema (`bundle_schema`) | `schema_version` of the export; always `platform.workflow_bundle.v2` |
-| Compatible Flow Steward | the version the file was exported from, never older than 0.7.16, the first Flow Steward that imports v2 bundles |
+| Compatible Flow Steward | the version the file was exported from, never older than 0.7.16, the first Flow Steward that imports v2 bundles, or 0.9.4 for a file with `definitions`, the first that creates them |
 | Added, updated | the commit that added the first version, and the one that added this version |
 | Download URL, size, SHA-256 | the file and the commit that last changed it |
 
