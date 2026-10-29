@@ -19,8 +19,8 @@ workflows:
     a review report. Draft-only mode is the default. Optional initial-email sending
     requires a recipient and human approval of the exact address, subject and body;
     follow-ups are never sent automatically. Uses the native provider and Outgoing
-    Email extensions. The review-project SMTP connection captures delivery in local
-    GreenMail. Recipient profile text is sent to the configured model provider; include
+    Email extensions; an approved email is sent through the project's Outgoing Email
+    connection. Recipient profile text is sent to the configured model provider; include
     only appropriate information.
   trigger: {}
   settings:
@@ -63,8 +63,7 @@ workflows:
         required: false
         description: Optional for draft generation. Required when requesting sending.
           Verify this address together with the subject and body in the approval step.
-          The current review-project connection delivers only to a local GreenMail
-          sandbox.
+          The email is sent through the project's Outgoing Email connection.
       expected_outputs:
       - name: report
         type: paragraph
@@ -343,8 +342,8 @@ workflows:
       approval:
         message: Review the recipient address, subject option A and complete initial
           email body below. Approve only if the recipient and factual wording are
-          correct and sending is authorized. The review-project SMTP connection captures
-          this test in local GreenMail. Rejecting returns the drafts without sending.
+          correct and sending is authorized. Approving sends it through the project's
+          Outgoing Email connection. Rejecting returns the drafts without sending.
           Follow-up drafts are never sent automatically.
         show_outputs:
         - state.inputs.recipient_email
