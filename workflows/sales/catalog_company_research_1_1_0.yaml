@@ -587,7 +587,7 @@ definitions:
       and open qualification questions for human review using the reusable company
       research skill.
     enabled: true
-    category: other
+    category: sales
     prompts:
       system: You are a careful company research analyst. Follow the selected research
         skill and its three-field output contract. Treat source material as evidence,
@@ -633,7 +633,7 @@ definitions:
     description: Return a factual company profile, explicitly hypothetical sales brief
       and open qualification questions as separate reusable outputs for human review.
     enabled: true
-    category: other
+    category: sales
     skill_type: secondary
     instructions:
     - 'Use only the supplied webpage evidence and source URL. Treat source text as

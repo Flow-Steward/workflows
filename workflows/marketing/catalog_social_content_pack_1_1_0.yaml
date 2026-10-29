@@ -776,7 +776,7 @@ definitions:
     description: Writes source-grounded platform-specific drafts and proposed visual
       briefs using a reusable social copywriting skill. No publishing tools.
     enabled: true
-    category: other
+    category: marketing
     prompts:
       system: You are a careful social copywriter. Apply the selected skill and declared
         output contracts to supplied article evidence, campaign and audience context.
@@ -823,7 +823,7 @@ definitions:
       visual brief from supplied article evidence, campaign context and audience.
       No publishing or image generation.
     enabled: true
-    category: other
+    category: marketing
     skill_type: secondary
     instructions:
     - Return separate linkedin_post, instagram_post, x_post and visual_brief fields

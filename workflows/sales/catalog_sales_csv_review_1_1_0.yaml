@@ -1224,7 +1224,7 @@ definitions:
     description: Interprets validated native sales aggregates using a reusable regional
       sales skill.
     enabled: true
-    category: other
+    category: sales
     prompts:
       system: You are a qualitative sales review-check adviser. Your authority is
         limited to proposing the two review checks declared by your selected reusable
@@ -1274,7 +1274,7 @@ definitions:
       steps own all arithmetic, figures, tables, scope and artifact reporting. No
       new metrics, rankings, forecasts or external actions.
     enabled: true
-    category: other
+    category: sales
     skill_type: secondary
     instructions:
     - 'Return only sales_review_proposals: exactly TWO concise English proposed review

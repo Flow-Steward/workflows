@@ -924,7 +924,7 @@ definitions:
     description: Writes separate, evidence-grounded outreach email fields for human
       review; has no sending tools.
     enabled: true
-    category: other
+    category: marketing
     prompts:
       system: You are a careful business copywriter. Follow the selected structured
         writing skill, preserve source meaning and uncertainty, and return English
@@ -970,7 +970,7 @@ definitions:
       personalization_note fields for human review and optional approval-gated sandbox
       delivery.
     enabled: true
-    category: other
+    category: marketing
     skill_type: secondary
     instructions:
     - Act as a careful business copywriter. Write all output in English. Treat supplied

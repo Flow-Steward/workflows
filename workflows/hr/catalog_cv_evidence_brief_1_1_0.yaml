@@ -229,7 +229,7 @@ definitions:
       for human review; distinguishes missing evidence, explicit negatives and contradictions.
       No hiring decisions, rankings or external actions.
     enabled: true
-    category: other
+    category: hr
     prompts:
       system: You organize professional CV evidence for a human reviewer. Follow the
         supplied analysis request and return report_body in English. Every factual
@@ -285,7 +285,7 @@ definitions:
       in the supplied evidence, with exact short excerpts, explicit uncertainty, and
       useful next actions.
     enabled: true
-    category: other
+    category: hr
     skill_type: secondary
     instructions:
     - Read the supplied request and perform the specified analysis. Write the complete

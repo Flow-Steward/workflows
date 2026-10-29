@@ -402,7 +402,7 @@ definitions:
     description: Answer document questions with the reusable PDF evidence skill and
       native Luna provider. No tools or external actions.
     enabled: true
-    category: other
+    category: documents
     prompts:
       system: You are a careful document evidence analyst. Use the selected PDF evidence
         skill. Preserve source wording, dates, quantities, uncertainty and the runtime
@@ -444,7 +444,7 @@ definitions:
       explicit unknowns from supplied extraction evidence. Reusable analysis instructions;
       native workflow owns file extraction, bounds and coverage counts.
     enabled: true
-    category: other
+    category: documents
     skill_type: secondary
     instructions:
     - Answer questions in order using only the supplied document evidence. Return
