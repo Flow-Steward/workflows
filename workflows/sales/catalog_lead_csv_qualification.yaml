@@ -1,0 +1,743 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-29T12:04:53+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_lead_csv_qualification
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+workflows:
+- workflow_id: catalog_lead_csv_qualification
+  version: 1.0.0
+  display_name: Qualify a lead CSV with explicit size and budget rules
+  description: 'Upload a lead CSV, choose Comma (default), Semicolon or Pipe as its
+    separator, and set inclusive employee/budget thresholds. Native tabular validation,
+    number normalization and row-conservation checks produce qualified and human-review
+    CSV queues with numeric counts. Required column names are lead_id, company, email,
+    employees and budget. Unparseable numbers stop before queue creation; negative
+    values and blank email remain in review. Budgets must be comparable before upload:
+    currency is not read, verified or converted. Download CSVs from generated step
+    files; callable File outputs and a Google Sheets connection are not connected.
+    No model judgment, enrichment or outreach.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: lead_csv
+        type: file
+        label: Lead CSV file
+        required: true
+        description: Upload CSV with columns lead_id, company, email, employees, budget
+          and choose its separator below (Comma by default). Use unique lead IDs and
+          nonempty company, employee count and budget. Numeric values use a decimal
+          point without currency symbols or thousands separators. Unparseable numbers
+          stop before queue files are written. Negative employees/budgets and blank
+          email route to human review. Before upload, make budgets and the threshold
+          comparable in the same units and currency; this workflow does not inspect
+          or validate currency.
+      - name: minimum_employees
+        type: number
+        label: Minimum employee count
+        required: true
+        description: Inclusive minimum employee count for the qualified queue. Use
+          a nonnegative number.
+      - name: minimum_budget
+        type: number
+        label: Minimum budget
+        required: true
+        description: Inclusive minimum budget, in the same currency and units as every
+          CSV row.
+      - name: csv_delimiter
+        type: select
+        label: CSV separator
+        options:
+        - Comma
+        - Semicolon
+        - Pipe
+        required: false
+        description: 'Choose the separator used by your CSV: Comma (,), Semicolon
+          (;) or Pipe (|). Leave unselected for Comma. Decimal numbers still use a
+          point; separators inside quoted text must follow standard CSV quoting.'
+      expected_outputs:
+      - name: report
+        type: paragraph
+        label: Queue counts and download instructions
+        required: true
+      - name: qualified_count
+        type: number
+        label: Qualified lead count
+        required: true
+      - name: review_count
+        type: number
+        label: Human review count
+        required: true
+      trigger_channels:
+      - ui
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: read_leads
+    step_kind: tabular_feed
+    display_name: Read the uploaded lead CSV
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          artifact_handle: state.inputs.lead_csv.artifact_id
+        options:
+          format: csv
+          delimiter: '{{ state.csv_separator }}'
+        operation: read
+        key_column: lead_id
+        result_target: state.leads
+  - step_id: validate_leads
+    step_kind: tabular_feed
+    display_name: Validate required fields and unique lead IDs
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.leads.dataset_handle
+        checks:
+          unique:
+          - lead_id
+          non_empty:
+          - lead_id
+          - company
+          - employees
+          - budget
+          required_columns:
+          - lead_id
+          - company
+          - email
+          - employees
+          - budget
+        operation: validate
+        result_target: state.lead_validation
+  - step_id: require_valid
+    step_kind: if
+    display_name: Require a valid input dataset
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.lead_validation.valid
+  - step_id: normalize_leads
+    step_kind: tabular_feed
+    display_name: Normalize employee counts budgets and emails
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.leads.dataset_handle
+        actions:
+        - action: number.coerce
+          params: {}
+          target: employees
+        - action: money.coerce
+          params: {}
+          target: budget
+        - action: text.trim
+          params: {}
+          target: email
+        operation: transform
+        result_target: state.normalized
+  - step_id: qualify_leads
+    step_kind: tabular_feed
+    display_name: Select leads matching the explicit thresholds
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.normalized.dataset_handle
+        operation: transform
+        relational:
+        - op: filter
+          when:
+            all:
+            - gte: '{{ state.inputs.minimum_employees }}'
+              column: employees
+            - gte: '{{ state.inputs.minimum_budget }}'
+              column: budget
+            - column: email
+              is_not_empty: true
+        result_target: state.qualified
+  - step_id: write_qualified
+    step_kind: tabular_feed
+    display_name: Save the qualified lead queue
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.qualified.dataset_handle
+        format: csv
+        options:
+          filename: qualified_leads.csv
+        operation: write
+        result_target: state.qualified_file
+  - step_id: select_review
+    step_kind: tabular_feed
+    display_name: Select remaining leads for human review
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.normalized.dataset_handle
+        operation: transform
+        relational:
+        - op: filter
+          when:
+            any:
+            - lt: '{{ state.inputs.minimum_employees }}'
+              column: employees
+            - lt: '{{ state.inputs.minimum_budget }}'
+              column: budget
+            - column: email
+              is_empty: true
+        result_target: state.review
+  - step_id: write_review
+    step_kind: tabular_feed
+    display_name: Save the lead review queue
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.review.dataset_handle
+        format: csv
+        options:
+          filename: leads_for_review.csv
+        operation: write
+        result_target: state.review_file
+  - step_id: report
+    step_kind: template
+    display_name: Return queue counts and download instructions
+    optional: false
+    override:
+      template:
+        text: '# Lead qualification queues
+
+
+          Input rows: {{ source.row_count }}
+
+          Qualified queue: {{ qualified.row_count }} rows.
+
+          Human review queue: {{ review.row_count }} rows.
+
+
+          ## Explicit rules
+
+          A row enters the qualified queue only when employees is at least {{ minimum_employees
+          }}, budget is at least {{ minimum_budget }} in the input budget units, and
+          the trimmed email field is non-empty. Thresholds are inclusive. Every other
+          valid row enters the review queue.
+
+
+          {% if source.row_count != qualified.row_count + review.row_count %}WARNING:
+          queue counts do not partition the input; investigate before use.{% endif
+          %}
+
+
+          ## Download
+
+          Open this run in Job Details. Select Save the qualified lead queue or Save
+          the lead review queue, then use Generated files > Download. Both CSV files
+          preserve the supplied lead fields with normalized numeric and email values.
+
+
+          ## Human checks
+
+          - [ ] Confirm that these thresholds match the intended business criteria.
+
+          - [ ] Before uploading, make every budget comparable with the threshold
+          in the same currency and units. This workflow does not read, verify or convert
+          currency; a numeric match is not a currency check.
+
+          - [ ] Review rows outside the qualified queue before deciding next actions.
+
+          - [ ] Verify email syntax, deliverability and permission to contact independently;
+          only non-emptiness was checked.
+
+
+          This is deterministic screening of supplied business data. No model scores,
+          enrichment, email sends or Google Sheets/CRM updates occurred. A review-queue
+          row is not a rejection. Missing required fields or duplicate lead IDs stop
+          the run before queue creation.
+
+          '
+        format: markdown
+        inputs:
+        - name: source
+          type: object
+          source: state.leads
+          required: true
+        - name: qualified
+          type: object
+          source: state.qualified_file
+          required: true
+        - name: review
+          type: object
+          source: state.review_file
+          required: true
+        - name: minimum_employees
+          type: number
+          source: state.inputs.minimum_employees
+          required: true
+        - name: minimum_budget
+          type: number
+          source: state.inputs.minimum_budget
+          required: true
+        result_target: state.report
+  - step_id: done
+    step_kind: stop_success
+    display_name: Lead queues ready
+    optional: false
+    override:
+      stop_success:
+        message: Lead queues ready
+  - step_id: invalid
+    step_kind: stop_fail
+    display_name: Fix the lead CSV before screening
+    optional: false
+    override:
+      stop_fail:
+        message: Lead screening stopped before queue creation. Check the CSV for missing
+          columns, blank required values, duplicate lead IDs and unparseable employee
+          or budget values. Use plain numbers with a decimal point and no currency
+          symbols or thousands separators. Both minimum thresholds must be zero or
+          greater. The combined qualified and review counts must equal the input row
+          count. Open the validation and balance-check steps in Job Details, correct
+          the inputs, and rerun. No lead queues were created.
+  - step_id: template
+    step_kind: template
+    display_name: Explain input validation findings
+    optional: false
+    override:
+      template:
+        text: 'Lead CSV validation: {% if validation.valid %}passed{% else %}needs
+          correction{% endif %}.
+
+          Missing required columns: {{ validation.report.required_columns.fail_count
+          }}. {% for column in validation.report.required_columns.sample_failures
+          %}{{ column }} {% endfor %}
+
+          Blank required values: {{ validation.report.non_empty.fail_count }}. {%
+          for item in validation.report.non_empty.sample_failures %}CSV data row {{
+          item.row_index + 1 }}, column {{ item.column }}. {% endfor %}
+
+          Duplicate lead IDs: {{ validation.report.unique.fail_count }}. {% for item
+          in validation.report.unique.sample_failures %}CSV data row {{ item.row_index
+          + 1 }}, ID {{ item.value }}. {% endfor %}
+
+          Row numbers count data rows only, excluding the header. Findings may be
+          a bounded sample; counts reflect all validation failures.'
+        format: text
+        inputs:
+        - name: validation
+          type: object
+          source: state.lead_validation
+          required: true
+        result_target: state.input_validation_summary
+  - step_id: tabular_feed
+    step_kind: tabular_feed
+    display_name: Validate normalized employee counts and budgets
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.normalized.dataset_handle
+        checks:
+          types:
+            budget: number
+            employees: number
+          non_empty:
+          - employees
+          - budget
+        operation: validate
+        result_target: state.numeric_validation
+  - step_id: if
+    step_kind: if
+    display_name: Require valid normalized numbers
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.numeric_validation.valid
+  - step_id: template_2
+    step_kind: template
+    display_name: Check that every input lead belongs to a queue
+    optional: false
+    override:
+      template:
+        text: '{% if minimum_employees < 0 or minimum_budget < 0 %}invalid_thresholds{%
+          elif source.row_count == qualified.row_count + review.row_count %}balanced{%
+          else %}mismatch{% endif %}'
+        format: text
+        inputs:
+        - name: source
+          type: object
+          source: state.leads
+          required: true
+        - name: qualified
+          type: object
+          source: state.qualified
+          required: true
+        - name: review
+          type: object
+          source: state.review
+          required: true
+        - name: minimum_employees
+          type: number
+          source: state.inputs.minimum_employees
+          required: true
+        - name: minimum_budget
+          type: number
+          source: state.inputs.minimum_budget
+          required: true
+        result_target: state.queue_balance
+  - step_id: if_2
+    step_kind: if
+    display_name: Require all input leads to be accounted for
+    optional: false
+    override:
+      if:
+        condition:
+          value: balanced
+          operator: equals
+          selector: state.queue_balance
+  - step_id: stop_fail
+    step_kind: stop_fail
+    display_name: CSV processing could not be completed
+    optional: false
+    override:
+      stop_fail:
+        message: The CSV could not be read, validated, transformed or saved. Open
+          the failed step in Job Details for the original cause. Check the file, selected
+          separator, documented column names and plain numeric values. This run did
+          not finish producing both queues; do not use partial files from a failed
+          run.
+  - step_id: set_variable
+    step_kind: set_variable
+    display_name: Expose numeric lead queue counts
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.review_count:
+            source: state.review.row_count
+          state.qualified_count:
+            source: state.qualified.row_count
+  - step_id: prepare_separator
+    step_kind: template
+    display_name: Resolve the selected CSV separator
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{% set selected=choice|default(''Comma'') %}{% if selected == ''Semicolon''
+          %};{% elif selected == ''Pipe'' %}|{% else %},{% endif %}'
+        format: text
+        inputs:
+        - name: choice
+          type: text
+          source: state.inputs.csv_delimiter
+          required: false
+        result_target: state.csv_separator
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: read_leads
+        kind: step
+      target:
+        id: validate_leads
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: validate_leads
+        kind: step
+      target:
+        id: template
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: require_valid
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: require_valid
+        kind: step
+      target:
+        id: normalize_leads
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: report
+        kind: step
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: require_valid
+        kind: step
+      target:
+        id: invalid
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: tabular_feed
+        kind: step
+      target:
+        id: if
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: qualify_leads
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: normalize_leads
+        kind: step
+      target:
+        id: tabular_feed
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: invalid
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: template_2
+        kind: step
+      target:
+        id: if_2
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: write_qualified
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: invalid
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: qualify_leads
+        kind: step
+      target:
+        id: select_review
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: select_review
+        kind: step
+      target:
+        id: template_2
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: write_qualified
+        kind: step
+      target:
+        id: write_review
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: read_leads
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: validate_leads
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: normalize_leads
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: qualify_leads
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: write_qualified
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: select_review
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: write_review
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: tabular_feed
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: set_variable
+        kind: step
+      target:
+        id: report
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: write_review
+        kind: step
+      target:
+        id: set_variable
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: prepare_separator
+        kind: step
+      target:
+        id: read_leads
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: prepare_separator
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: prepare_separator
+      kind: step
+    schema_version: 1
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow
