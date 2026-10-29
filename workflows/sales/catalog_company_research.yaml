@@ -1,0 +1,584 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-29T12:04:40+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_company_research
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+  child_workflow_ids:
+  - catalog_public_webpage_reader
+workflows:
+- workflow_id: catalog_company_research
+  version: 1.0.0
+  display_name: Research a company from its website
+  description: Turn one public company webpage into an English company profile and
+    a sales preparation brief. Enter the webpage URL and read the report in the run
+    results. Separates observed facts, sales hypotheses and unanswered qualification
+    questions. Uses Jina Reader and the model configured for Web Research Analyst
+    through a Flow Steward LLM provider extension. Covers one page and at most its
+    first 30,000 characters; does not search or crawl the rest of the website.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: page_url
+        type: string
+        label: Webpage URL
+        required: true
+        description: Public webpage to analyze. Use a complete https:// URL.
+      expected_outputs:
+      - name: report
+        type: paragraph
+        required: true
+        description: Markdown report including source URL, evidence and limitations.
+      - name: company_profile
+        type: paragraph
+        label: Company profile
+        required: true
+        description: Source-grounded organization facts with source URL and page-scoped
+          limitations.
+      - name: sales_brief
+        type: paragraph
+        label: Sales brief
+        required: true
+        description: Exploratory conversation topics explicitly labelled hypotheses,
+          with no invented buying intent.
+      - name: open_questions
+        type: paragraph
+        label: Open qualification questions
+        required: true
+        description: Missing evidence and unanswered qualification questions for human
+          review.
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: read_page
+    step_kind: invoke_workflow
+    display_name: Read public webpage with shared reader
+    workflow_id: catalog_public_webpage_reader
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      invoke_workflow:
+        workflow_id: catalog_public_webpage_reader
+        input_mapping:
+          page_url: state.inputs.page_url
+        output_mapping:
+          page_response: state.page_response
+  - step_id: check_page
+    step_kind: if
+    display_name: Check that page content exists
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.page_response.data.content
+  - step_id: compose_prompt
+    step_kind: template
+    display_name: Prepare company source evidence
+    optional: false
+    override:
+      template:
+        text: 'Source URL: {{ url }}
+
+          Reader-returned characters: {{ page|length }}
+
+          Supplied characters: {{ page[:30000]|length }}
+
+          {% if page|length > 30000 %}Coverage: partial reader extraction, first 30000
+          characters only.{% else %}Coverage: complete reader-returned extraction
+          of this one page.{% endif %}
+
+
+          SOURCE CONTENT:
+
+          {{ page[:30000] }}
+
+          END SOURCE CONTENT'
+        format: text
+        inputs:
+        - name: page
+          type: text
+          source: state.page_response.data.content
+          required: true
+        - name: url
+          type: text
+          source: state.inputs.page_url
+          required: true
+        result_target: state.request
+  - step_id: analyze
+    step_kind: agent
+    display_name: Research company facts and qualification gaps
+    agent_id: catalog_company_research_analyst
+    skill_id: catalog_company_research
+    input_mapping_jsonb:
+      request: state.request
+    output_mapping_jsonb:
+      sales_brief: state.sales_brief
+      company_profile: state.company_profile
+      qualification_questions: state.open_questions
+    error_policy:
+      on_error: route_to_step
+    optional: false
+  - step_id: check_report
+    step_kind: if
+    display_name: Require a non-empty company profile
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.company_profile
+  - step_id: format_report
+    step_kind: template
+    display_name: Return the report and its source
+    optional: false
+    override:
+      template:
+        text: '# Company research — for human review
+
+
+          Source: {{ url }}
+
+          Source coverage: {{ source|length }} characters returned by the reader;
+          {{ source[:30000]|length }} supplied for research.
+
+          {% if source|length > 30000 %}Partial coverage: only the first 30000 characters
+          were supplied.{% endif %}
+
+
+          ## Company profile
+
+          {{ profile }}
+
+
+          ## Sales brief — exploratory hypotheses
+
+          {{ sales }}
+
+
+          ## Open qualification questions
+
+          {{ questions }}
+
+
+          No outreach was sent and no CRM record was changed.'
+        format: markdown
+        inputs:
+        - name: url
+          type: text
+          source: state.inputs.page_url
+          required: true
+        - name: profile
+          type: text
+          source: state.company_profile
+          required: true
+        - name: sales
+          type: text
+          source: state.sales_brief
+          required: true
+        - name: questions
+          type: text
+          source: state.open_questions
+          required: true
+        - name: source
+          type: text
+          source: state.page_response.data.content
+          required: true
+        result_target: state.report
+  - step_id: done
+    step_kind: stop_success
+    display_name: Report ready
+    optional: false
+    override:
+      stop_success:
+        message: The Markdown report is available in workflow output report.
+  - step_id: no_content
+    step_kind: stop_fail
+    display_name: No readable page content
+    optional: false
+    override:
+      stop_fail:
+        message: Reader returned no readable content. Check the public URL and access
+          restrictions.
+  - step_id: no_report
+    step_kind: stop_fail
+    display_name: No analysis returned
+    optional: false
+    override:
+      stop_fail:
+        message: The provider returned no report text. Check the provider response
+          before retrying.
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: read_page
+        kind: step
+      target:
+        id: check_page
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: check_page
+        kind: step
+      target:
+        id: compose_prompt
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: check_page
+        kind: step
+      target:
+        id: no_content
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: compose_prompt
+        kind: step
+      target:
+        id: analyze
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: check_report
+        kind: step
+      target:
+        id: format_report
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: check_report
+        kind: step
+      target:
+        id: no_report
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: format_report
+        kind: step
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: analyze
+        kind: step
+      target:
+        id: check_report
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: read_page
+        kind: step
+      target:
+        id: no_content
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: analyze
+        kind: step
+      target:
+        id: no_report
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: read_page
+      kind: step
+    schema_version: 1
+- workflow_id: catalog_public_webpage_reader
+  version: 1.0.0
+  display_name: Read one public webpage with source metadata
+  description: Reusable native reader for one public HTTP/HTTPS page. Returns the
+    Jina Reader response with extracted content and available source metadata for
+    downstream workflows. No model rewriting, crawling, publishing or external writes.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: page_url
+        type: string
+        label: Public webpage URL
+        required: true
+        description: One complete public http:// or https:// URL. No credentials or
+          private document links. The reader does not crawl linked pages.
+      expected_outputs:
+      - name: page_response
+        type: object
+        label: Reader response and source metadata
+        required: true
+        description: Structured Jina Reader response. data.content is the extracted
+          page text; data.title, data.url and other metadata are preserved when returned
+          by the source. No model rewriting.
+      trigger_channels:
+      - ui
+      - parent_workflow
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: http_request
+    step_kind: http_request
+    display_name: Read public content through Jina Reader
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://r.jina.ai/{{ state.inputs.page_url }}
+        method: GET
+        headers:
+          Accept: application/json
+          X-Timeout: '30'
+          X-Respond-With: markdown
+        auth_ref: ''
+        auth_mode: none
+        query_params: {}
+        body_template: ''
+        response_mode: inline
+        response_target: state.page_response
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        max_response_bytes: 150000
+  - step_id: if
+    step_kind: if
+    display_name: Require readable source content
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.page_response.data.content
+  - step_id: stop_success
+    step_kind: stop_success
+    display_name: Return readable page and source metadata
+    optional: false
+    override:
+      stop_success:
+        message: Public webpage content was read. Review the returned source metadata
+          and content before relying on downstream claims.
+  - step_id: stop_fail
+    step_kind: stop_fail
+    display_name: Stop when the public page cannot be read
+    optional: false
+    override:
+      stop_fail:
+        message: The public page could not be read or returned no readable content.
+          Provide a complete public http:// or https:// URL, check that the page exists
+          and is accessible, then retry. No downstream model or publishing action
+          was run.
+  - step_id: template
+    step_kind: template
+    display_name: Validate public webpage URL scheme
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{%- set value = url|default('''', true)|trim -%}
+
+          {{ ''valid'' if ((value.startswith(''https://'') and value|length > 8) or
+          (value.startswith(''http://'') and value|length > 7)) else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: url
+          type: text
+          source: state.inputs.page_url
+          required: true
+        result_target: state.url_check
+  - step_id: if_2
+    step_kind: if
+    display_name: Require complete HTTP or HTTPS URL
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.url_check
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: if
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_success
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: if_2
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: http_request
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: template
+      kind: step
+    schema_version: 1
+dependencies:
+  agents:
+  - agent_id: catalog_company_research_analyst
+    display_name: Company Research Analyst
+    required: true
+    sources:
+    - analyze
+    description: Produce evidence-grounded company profiles, hypothetical sales topics
+      and open qualification questions for human review using the reusable company
+      research skill.
+    version: 1.0.0
+    enabled: true
+  skills:
+  - skill_id: catalog_company_research
+    display_name: Research a company from supplied source evidence
+    required: true
+    sources:
+    - analyze
+    description: Return a factual company profile, explicitly hypothetical sales brief
+      and open qualification questions as separate reusable outputs for human review.
+    version: 1.0.0
+    enabled: true
+  tools: []
+  child_workflows:
+  - workflow_id: catalog_public_webpage_reader
+    display_name: Read one public webpage with source metadata
+    required: true
+    sources:
+    - read_page
+    - workflow_runtime_dependencies
+    description: Reusable native reader for one public HTTP/HTTPS page. Returns the
+      Jina Reader response with extracted content and available source metadata for
+      downstream workflows. No model rewriting, crawling, publishing or external writes.
+    version: 1.0.0
+    enabled: true
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

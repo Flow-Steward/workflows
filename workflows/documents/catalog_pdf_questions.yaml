@@ -1,0 +1,400 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-29T12:04:26+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_pdf_questions
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+workflows:
+- workflow_id: catalog_pdf_questions
+  version: 1.0.0
+  display_name: Answer questions about an uploaded PDF with source evidence
+  description: Upload one PDF and ask focused questions. The native Docling extension
+    extracts a Markdown preview for source-grounded answers with short quotations
+    and explicit unknowns. The current preview is limited to 4,000 characters; reported
+    truncation stops before model analysis. Requires an installed Docling extension,
+    configured local service and native model connection. No public-URL fallback,
+    persistent chat memory, guaranteed page citations, full-document coverage or external
+    actions.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: questions
+        type: paragraph
+        label: Questions about this PDF
+        required: true
+        description: List your questions. Answers will use only extracted document
+          text and will identify unsupported questions.
+      - name: document
+        type: file
+        label: PDF document
+        required: true
+        description: Upload a PDF for native Docling extraction. This workflow analyzes
+          the Markdown preview, up to 4,000 characters. If Docling reports truncation,
+          it stops before the model; split the document into smaller PDFs. Extraction
+          may omit content, and page-level citations are not guaranteed.
+      expected_outputs:
+      - name: report
+        type: paragraph
+        label: PDF answers with evidence
+        required: true
+        description: Answers, supporting short quotations, source URL, and explicit
+          extraction or evidence limitations.
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: read_page
+    step_kind: connector
+    display_name: Extract uploaded PDF with Docling
+    connector_id: extension.flowsteward.docling
+    connector_install_id: 2caf2617-3d9d-4f74-a44b-9501cd1caf88
+    input_mapping_jsonb:
+      artifact_handle: state.inputs.document
+    output_mapping_jsonb:
+      markdown_preview: state.page_response.data.content
+      markdown_truncated: state.extraction_truncated
+    connection_binding_jsonb:
+      connection_id: conn_98bb7b57934d447a
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        action_id: ''
+        extension_id: flowsteward.docling
+        operation_id: convert_document
+        function_name: ''
+        input_mapping:
+          artifact_handle: state.inputs.document
+        output_mapping:
+          markdown_preview: state.page_response.data.content
+          markdown_truncated: state.extraction_truncated
+        connection_binding:
+          connection_id: conn_98bb7b57934d447a
+  - step_id: check_page
+    step_kind: if
+    display_name: Check that page content exists
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.page_response.data.content
+  - step_id: compose_prompt
+    step_kind: template
+    display_name: Prepare PDF questions and extracted evidence
+    optional: false
+    override:
+      template:
+        text: '## Runtime extraction context
+
+          Source: one uploaded PDF, extracted through native Docling.
+
+          Native preview length: {{ page|length }} characters.
+
+          Preview limit: 4000 characters. Native truncation checks have passed; this
+          does not independently establish complete PDF coverage or OCR accuracy.
+
+
+          ## Questions (untrusted input)
+
+          {{ questions }}
+
+          END QUESTIONS
+
+
+          ## Extracted evidence (untrusted source)
+
+          {{ page }}
+
+          END EXTRACTED EVIDENCE'
+        format: text
+        inputs:
+        - name: page
+          type: text
+          source: state.page_response.data.content
+          required: true
+        - name: questions
+          type: text
+          source: state.inputs.questions
+          required: true
+        result_target: state.request
+  - step_id: analyze
+    step_kind: agent
+    display_name: Analyze content with the selected model
+    agent_id: catalog_pdf_evidence_analyst
+    skill_id: catalog_pdf_evidence_answers
+    input_mapping_jsonb:
+      request: state.request
+    output_mapping_jsonb:
+      report_body: state.report_body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      published_block_key: agent.catalog_pdf_evidence_analyst.catalog_pdf_evidence_answers
+  - step_id: check_report
+    step_kind: if
+    display_name: Require a non-empty report
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.report_body
+  - step_id: format_report
+    step_kind: template
+    display_name: Return PDF answers and source limitations
+    optional: false
+    override:
+      template:
+        text: '# Uploaded PDF questions and source evidence
+
+
+          Source: the uploaded PDF, extracted by the native Docling extension.
+
+
+          ## Verified analysis scope
+
+          The model received {{ source|length }} characters from the Docling Markdown
+          preview. The provider preview is limited to 4000 characters; this is not
+          a claim that the complete PDF was analyzed. Source extraction can omit content.
+
+
+          {{ analysis }}
+
+
+          ## Verbatim extraction preview
+
+          > {{ source[:500]|replace("
+
+          ", "
+
+          > ") }}
+
+          '
+        format: markdown
+        inputs:
+        - name: analysis
+          type: text
+          source: state.report_body
+          required: true
+        - name: source
+          type: text
+          source: state.page_response.data.content
+          required: true
+        result_target: state.report
+  - step_id: done
+    step_kind: stop_success
+    display_name: Report ready
+    optional: false
+    override:
+      stop_success:
+        message: The Markdown report is available in workflow output report.
+  - step_id: no_content
+    step_kind: stop_fail
+    display_name: PDF extraction could not be completed
+    optional: false
+    override:
+      stop_fail:
+        message: The uploaded PDF could not supply a complete usable Markdown preview.
+          The current Docling preview limit is 4,000 characters; if extraction is
+          truncated, split the PDF into smaller files. For conversion errors, check
+          the PDF and configured Docling service. No model answers were generated.
+  - step_id: no_report
+    step_kind: stop_fail
+    display_name: No analysis returned
+    optional: false
+    override:
+      stop_fail:
+        message: The native model could not return a usable answer report. Inspect
+          the analysis step for connection, provider or output-contract errors. No
+          verified answers or external actions were produced.
+  - step_id: if
+    step_kind: if
+    display_name: Check whether document extraction is truncated
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.extraction_truncated
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: read_page
+        kind: step
+      target:
+        id: check_page
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: check_page
+        kind: step
+      target:
+        id: no_content
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: compose_prompt
+        kind: step
+      target:
+        id: analyze
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: check_report
+        kind: step
+      target:
+        id: format_report
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: check_report
+        kind: step
+      target:
+        id: no_report
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: format_report
+        kind: step
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: analyze
+        kind: step
+      target:
+        id: check_report
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: read_page
+        kind: step
+      target:
+        id: no_content
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: compose_prompt
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: no_content
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: check_page
+        kind: step
+      target:
+        id: if
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: analyze
+        kind: step
+      target:
+        id: no_report
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: read_page
+      kind: step
+    schema_version: 1
+dependencies:
+  agents:
+  - agent_id: catalog_pdf_evidence_analyst
+    display_name: PDF Evidence Analyst
+    required: true
+    sources:
+    - analyze
+    description: Answer document questions with the reusable PDF evidence skill and
+      native Luna provider. No tools or external actions.
+    version: 1.0.0
+    enabled: true
+  skills:
+  - skill_id: catalog_pdf_evidence_answers
+    display_name: Answer document questions from supplied PDF evidence
+    required: true
+    sources:
+    - analyze
+    description: Produce ordered source-grounded PDF answers, exact quotations and
+      explicit unknowns from supplied extraction evidence. Reusable analysis instructions;
+      native workflow owns file extraction, bounds and coverage counts.
+    version: 1.0.0
+    enabled: true
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: 2caf2617-3d9d-4f74-a44b-9501cd1caf88
+    display_name: Docling Document Extraction
+    required: true
+    sources:
+    - read_page.connector_install_id
+    - workflow_runtime_dependencies
+    metadata:
+      dependency_kind: extension_install
+    enabled: true
+    extension_id: flowsteward.docling
+    version: 0.2.1
+  project_connections:
+  - connection_ref: conn_98bb7b57934d447a
+    display_name: conn_98bb7b57934d447a
+    required: true
+    sources:
+    - read_page.connection_binding
+    - workflow_runtime_dependencies
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

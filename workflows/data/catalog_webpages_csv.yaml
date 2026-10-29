@@ -1,0 +1,975 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-29T12:04:31+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_webpages_csv
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+  child_workflow_ids:
+  - catalog_public_webpage_reader
+workflows:
+- workflow_id: catalog_webpages_csv
+  version: 1.0.0
+  display_name: Export public webpages to a source CSV
+  description: Export a list of 1 to 100 public webpage URLs to an ordered CSV and
+    page records. Each URL uses the shared public reader. Failed reads become individual
+    rows with status and error details while readable pages are preserved; repeated
+    URLs remain separate records. Missing page titles fall back to the requested URL.
+    The report shows readable and total page counts. Download the generated CSV from
+    Job Details. Returns pages and CSV metadata; first-class returned File mapping
+    and optional database storage are not connected. No model rewriting, sign-in,
+    linked-page discovery or external database updates.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: urls
+        type: array
+        label: Public webpage URLs
+        required: true
+        description: Supply a list of 1 to 100 public HTTP/HTTPS webpage URLs. In
+          this form use a list such as ["https://www.iana.org/about", "https://example.com/"].
+          API, MCP and parent workflows pass the same urls array. Repeated URLs remain
+          separate records. Failed reads become rows with status/error; successful
+          text is preserved. Private pages, sign-in and linked-page discovery are
+          not supported.
+      expected_outputs:
+      - name: report
+        type: paragraph
+        label: Export coverage and download instructions
+        required: true
+        description: Source URLs, extracted character counts, and instructions to
+          download the generated CSV from Job Details.
+      - name: pages
+        type: array
+        label: Page records with status and errors
+        required: true
+        description: 'One record per supplied URL in input order: input_index, url,
+          fallback title, original page_title, content, status and error. Failed sources
+          remain present with empty content.'
+      - name: csv_export
+        type: object
+        label: CSV export metadata
+        required: true
+        description: Native CSV writer response and export metadata. The real file
+          is downloadable from Job Details > Save the extracted webpages as CSV >
+          Generated files. This object is not a first-class returned File output.
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: http_request
+    step_kind: invoke_workflow
+    for_each_id: read_urls
+    display_name: Read this URL with the shared public reader
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      invoke_workflow:
+        workflow_id: catalog_public_webpage_reader
+        input_mapping:
+          page_url: state.current_url
+        output_mapping:
+          page_response: state.page_response
+  - step_id: transform
+    step_kind: transform
+    for_each_id: read_urls
+    display_name: Map this URL into one independent page record
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.page_context
+        fields:
+        - to: input_index
+          from: input_index
+          type: number
+          required: true
+        - to: url
+          from: requested_url
+          type: text
+          required: true
+        - to: title
+          from: title
+          type: text
+          required: true
+        - to: page_title
+          from: response.data.title
+          type: text
+          default: ''
+        - to: content
+          from: response.data.content
+          type: text
+          default: ''
+        - to: status
+          from: response.code
+          type: text
+          default: read_error
+        - to: error
+          from: error
+          type: text
+          default: ''
+        output_mode: mapped_only
+        result_target: state.page_record
+  - step_id: tabular_feed
+    step_kind: tabular_feed
+    display_name: Create the collected page source dataset
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        rows: state.pages
+        input: {}
+        operation: create_dataset
+        result_target: state.pages_dataset
+  - step_id: tabular_feed_2
+    step_kind: tabular_feed
+    display_name: Save the extracted webpages as CSV
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      tabular_feed:
+        input:
+          dataset_handle: state.pages_dataset.dataset_handle
+        format: csv
+        options:
+          filename: public_webpage_sources.csv
+        operation: write
+        result_target: state.source_csv
+  - step_id: template
+    step_kind: template
+    display_name: Return source coverage and download instructions
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '# Public webpage source export
+
+
+          {% set ns=namespace(read=0) %}{% for page in pages %}{% if page.content|trim
+          %}{% set ns.read=ns.read+1 %}{% endif %}{% endfor %}Readable pages: {{ ns.read
+          }} of {{ urls|length }}. The CSV contains {{ file.row_count }} records,
+          including failed sources.
+
+
+          {% for page in pages %}## {{ page.input_index+1 }}. {{ page.title }}
+
+          Source: {{ page.url }}
+
+          Reader status: {{ page.status }}.
+
+          Text saved: {{ page.content|length }} characters.
+
+          {% if page.error %}Reader error: {{ page.error }}
+
+          {% endif %}{% if not page.content|trim %}No readable text was captured for
+          this source.
+
+          {% endif %}
+
+          {% endfor %}## Download
+
+          Open Job Details, select Save the extracted webpages as CSV, then Generated
+          files > Download.
+
+
+          ## Scope
+
+          One result is collected for every supplied URL, in input order, including
+          repeated URLs and failed reads. A failed source does not erase successful
+          source text. Empty page titles fall back to their source URL. Only the supplied
+          public pages are read; linked pages, private pages and sign-in are not supported.
+          No model rewrites or external database updates occur. Extraction does not
+          prove complete website coverage. The CSV is downloadable from Job Details;
+          first-class returned-file mapping for this native CSV writer remains unavailable.
+
+          '
+        format: markdown
+        inputs:
+        - name: pages
+          type: array
+          source: state.pages
+          required: true
+        - name: file
+          type: object
+          source: state.source_csv
+          required: true
+        - name: urls
+          type: array
+          source: state.inputs.urls
+          required: true
+        result_target: state.report
+  - step_id: stop_success
+    step_kind: stop_success
+    display_name: Source CSV ready
+    optional: false
+    override:
+      stop_success:
+        message: Source CSV ready
+  - step_id: template_2
+    step_kind: template
+    for_each_id: read_urls
+    display_name: Record this URL reader error
+    optional: false
+    override:
+      template:
+        text: '{% set ns=namespace(error=''Reader failed before a usable page response
+          was stored.'') %}{% for message in messages %}{% for error in message.get(''errors'',[])
+          %}{% set ns.error=error %}{% endfor %}{% endfor %}{{ ns.error }}'
+        format: text
+        inputs:
+        - name: messages
+          type: array
+          source: state.agent_messages
+          required: true
+        result_target: state.page_error
+  - step_id: set_variable
+    step_kind: set_variable
+    display_name: Initialize the page result collection
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.pages: []
+        output_types:
+          state.pages: array
+  - step_id: validate_urls
+    step_kind: template
+    display_name: Validate the supplied URL list
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{% set ns=namespace(bad=false) %}{% for url in urls %}{% if url is
+          not string or not url|trim %}{% set ns.bad=true %}{% endif %}{% endfor %}{%
+          if urls|length > 0 and urls|length <= 100 and not ns.bad %}valid{% else
+          %}invalid{% endif %}'
+        format: text
+        inputs:
+        - name: urls
+          type: array
+          source: state.inputs.urls
+          required: true
+        result_target: state.url_list_check
+  - step_id: require_urls
+    step_kind: if
+    display_name: Require 1 to 100 nonempty URL strings
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.url_list_check
+  - step_id: reset_page
+    step_kind: set_variable
+    for_each_id: read_urls
+    display_name: Reset response and error for this URL
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.page_error: ''
+          state.page_title: ''
+          state.current_url:
+            source: state.page_url
+          state.page_record: {}
+          state.page_context: {}
+          state.page_response: {}
+        output_types:
+          state.page_error: string
+          state.page_title: string
+          state.current_url: string
+          state.page_record: object
+          state.page_context: object
+          state.page_response: object
+  - step_id: normalize_url
+    step_kind: template
+    for_each_id: read_urls
+    display_name: Trim this URL before reading
+    optional: false
+    override:
+      template:
+        text: '{{ url|trim }}'
+        format: text
+        inputs:
+        - name: url
+          type: text
+          source: state.page_url
+          required: true
+        result_target: state.current_url
+  - step_id: page_title
+    step_kind: template
+    for_each_id: read_urls
+    display_name: Use the source URL when the page title is missing
+    optional: false
+    override:
+      template:
+        text: '{% set data=response.get(''data'') or {} %}{{ data.get(''title'') or
+          url }}'
+        format: text
+        inputs:
+        - name: response
+          type: object
+          source: state.page_response
+          required: true
+        - name: url
+          type: text
+          source: state.current_url
+          required: true
+        result_target: state.page_title
+  - step_id: page_context
+    step_kind: set_variable
+    for_each_id: read_urls
+    display_name: Prepare this page record source values
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.page_context.error:
+            source: state.page_error
+          state.page_context.title:
+            source: state.page_title
+          state.page_context.response:
+            source: state.page_response
+          state.page_context.input_index:
+            source: state.page_index
+          state.page_context.requested_url:
+            source: state.current_url
+  - step_id: collect_page
+    step_kind: collect
+    for_each_id: read_urls
+    display_name: Collect this page result in input order
+    optional: false
+    override:
+      collect:
+        mode: append
+        source: state.page_record
+        target: state.pages
+  - step_id: check_collection
+    step_kind: template
+    display_name: Verify every supplied URL produced a record
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{% if pages|length == urls|length %}valid{% else %}incomplete{% endif
+          %}'
+        format: text
+        inputs:
+        - name: pages
+          type: array
+          source: state.pages
+          required: true
+        - name: urls
+          type: array
+          source: state.inputs.urls
+          required: true
+        result_target: state.collection_check
+  - step_id: require_collection
+    step_kind: if
+    display_name: Require complete iteration coverage before exporting
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.collection_check
+  - step_id: expose_export
+    step_kind: set_variable
+    display_name: Expose the CSV export metadata
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.csv_export:
+            source: state.source_csv
+        output_types:
+          state.csv_export: object
+  - step_id: export_failed
+    step_kind: stop_fail
+    display_name: Source export could not be completed
+    optional: false
+    override:
+      stop_fail:
+        message: No complete source CSV was produced. Supply an array of 1 to 100
+          nonempty URL strings. Inspect the failed processing, dataset or CSV step.
+          Expected per-page reader failures are recorded as rows; unexpected export
+          failures stop here. No external database update occurred.
+  - step_id: collection_incomplete
+    step_kind: stop_fail
+    display_name: The runtime did not process every supplied URL
+    optional: false
+    override:
+      stop_fail:
+        message: The collected page count does not match the supplied URL count. Inspect
+          the For each runtime limit and execution details. No complete CSV export
+          is claimed; already collected page records remain in the run details.
+  groups: []
+  for_each:
+  - for_each_id: read_urls
+    group_id: null
+    display_name: Read each supplied public URL
+    over: state.inputs.urls
+    item_name: page_url
+    index_name: page_index
+    body:
+      kind: sequence
+      entry:
+        id: reset_page
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: tabular_feed
+        kind: step
+      target:
+        id: tabular_feed_2
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: stop_success
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: validate_urls
+        kind: step
+      target:
+        id: require_urls
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: require_urls
+        kind: step
+      target:
+        id: set_variable
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: require_urls
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: set_variable
+        kind: step
+      target:
+        id: read_urls
+        kind: for_each
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: reset_page
+        kind: step
+      target:
+        id: normalize_url
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: normalize_url
+        kind: step
+      target:
+        id: http_request
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: page_title
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: template_2
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template_2
+        kind: step
+      target:
+        id: page_title
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: page_title
+        kind: step
+      target:
+        id: page_context
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: page_context
+        kind: step
+      target:
+        id: transform
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: transform
+        kind: step
+      target:
+        id: collect_page
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: collect_page
+        kind: step
+      target:
+        kind: for_each_exit
+        lane_id: null
+        for_each_id: read_urls
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: read_urls
+        kind: for_each
+      target:
+        id: check_collection
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: read_urls
+        kind: for_each
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: check_collection
+        kind: step
+      target:
+        id: require_collection
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: require_collection
+        kind: step
+      target:
+        id: tabular_feed
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: require_collection
+        kind: step
+      target:
+        id: collection_incomplete
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: tabular_feed_2
+        kind: step
+      target:
+        id: expose_export
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: expose_export
+        kind: step
+      target:
+        id: template
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: validate_urls
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: require_urls
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: set_variable
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: check_collection
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: require_collection
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: tabular_feed
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: tabular_feed_2
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: expose_export
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: export_failed
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: validate_urls
+      kind: step
+    schema_version: 1
+- workflow_id: catalog_public_webpage_reader
+  version: 1.0.0
+  display_name: Read one public webpage with source metadata
+  description: Reusable native reader for one public HTTP/HTTPS page. Returns the
+    Jina Reader response with extracted content and available source metadata for
+    downstream workflows. No model rewriting, crawling, publishing or external writes.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: page_url
+        type: string
+        label: Public webpage URL
+        required: true
+        description: One complete public http:// or https:// URL. No credentials or
+          private document links. The reader does not crawl linked pages.
+      expected_outputs:
+      - name: page_response
+        type: object
+        label: Reader response and source metadata
+        required: true
+        description: Structured Jina Reader response. data.content is the extracted
+          page text; data.title, data.url and other metadata are preserved when returned
+          by the source. No model rewriting.
+      trigger_channels:
+      - ui
+      - parent_workflow
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: http_request
+    step_kind: http_request
+    display_name: Read public content through Jina Reader
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://r.jina.ai/{{ state.inputs.page_url }}
+        method: GET
+        headers:
+          Accept: application/json
+          X-Timeout: '30'
+          X-Respond-With: markdown
+        auth_ref: ''
+        auth_mode: none
+        query_params: {}
+        body_template: ''
+        response_mode: inline
+        response_target: state.page_response
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        max_response_bytes: 150000
+  - step_id: if
+    step_kind: if
+    display_name: Require readable source content
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.page_response.data.content
+  - step_id: stop_success
+    step_kind: stop_success
+    display_name: Return readable page and source metadata
+    optional: false
+    override:
+      stop_success:
+        message: Public webpage content was read. Review the returned source metadata
+          and content before relying on downstream claims.
+  - step_id: stop_fail
+    step_kind: stop_fail
+    display_name: Stop when the public page cannot be read
+    optional: false
+    override:
+      stop_fail:
+        message: The public page could not be read or returned no readable content.
+          Provide a complete public http:// or https:// URL, check that the page exists
+          and is accessible, then retry. No downstream model or publishing action
+          was run.
+  - step_id: template
+    step_kind: template
+    display_name: Validate public webpage URL scheme
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{%- set value = url|default('''', true)|trim -%}
+
+          {{ ''valid'' if ((value.startswith(''https://'') and value|length > 8) or
+          (value.startswith(''http://'') and value|length > 7)) else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: url
+          type: text
+          source: state.inputs.page_url
+          required: true
+        result_target: state.url_check
+  - step_id: if_2
+    step_kind: if
+    display_name: Require complete HTTP or HTTPS URL
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.url_check
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: if
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_success
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: if
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: http_request
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: template
+        kind: step
+      target:
+        id: if_2
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: http_request
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: if_2
+        kind: step
+      target:
+        id: stop_fail
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: template
+      kind: step
+    schema_version: 1
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows:
+  - workflow_id: catalog_public_webpage_reader
+    display_name: Read one public webpage with source metadata
+    required: true
+    sources:
+    - http_request
+    - workflow_runtime_dependencies
+    description: Reusable native reader for one public HTTP/HTTPS page. Returns the
+      Jina Reader response with extracted content and available source metadata for
+      downstream workflows. No model rewriting, crawling, publishing or external writes.
+    version: 1.0.0
+    enabled: true
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow
