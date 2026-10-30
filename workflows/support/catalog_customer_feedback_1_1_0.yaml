@@ -366,7 +366,7 @@ workflows:
     override:
       stop_fail:
         message: 'No verified feedback report was produced. Use one unique ID: feedback
-          record per nonblank line, at most100 records and30000 characters. Inspect
+          record per nonblank line, at most 100 records and 30000 characters. Inspect
           the failed step and model connection. Each source ID must occur in exactly
           one typed sentiment bucket; empty buckets are valid. No external updates
           or messages occurred.'

@@ -88,7 +88,12 @@ workflows:
           technologies and qualification levels. A course or incomplete degree is
           not a completed qualification; exposure is not expert proficiency. Never
           infer skill or duration from a job title. Preserve date ranges literally;
-          do not calculate years or resolve present using an unstated date. Only call
+          do not calculate years or resolve present using an unstated date. When a
+          criterion sets a duration and the CV gives explicit date ranges for directly
+          relevant work, mark Evidence present, quote the ranges and leave the duration
+          check to the reviewer. Not stated is only for a criterion with no relevant
+          line at all; related evidence that falls short of the criterion is
+          Conflicting/unclear, with its lines cited. Only call
           facts contradictory when the same professional fact is explicitly stated
           inconsistently; an employment start date alone does not establish when a
           particular skill began. If the same fact is contradicted, cite both lines

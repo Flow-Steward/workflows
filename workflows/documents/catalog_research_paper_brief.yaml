@@ -232,6 +232,13 @@ workflows:
       stop_fail:
         message: The model could not complete the analysis. Open the failed step in Job Details for the provider message, then retry. Nothing was sent or
           created.
+  - step_id: docling_failed
+    step_kind: stop_fail
+    display_name: Docling could not read the PDF
+    optional: false
+    override:
+      stop_fail:
+        message: Docling could not convert the PDF. Check the project's Docling connection (service address and API key) and retry; the Docling step in Job Details shows the HTTP status. No model analysis ran and nothing was sent or created.
   groups: []
   for_each: []
   execution_graph:
@@ -250,7 +257,7 @@ workflows:
         id: read_document
         kind: step
       target:
-        id: failed
+        id: docling_failed
         kind: step
       outcome:
         name: error

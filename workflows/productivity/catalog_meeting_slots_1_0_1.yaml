@@ -1,0 +1,1168 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-30T10:00:00+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_meeting_slots
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+workflows:
+- workflow_id: catalog_meeting_slots
+  version: 1.0.1
+  display_name: Suggest meeting slots from participant availability
+  description: Find meeting suggestions from 1 to 20 explicit participant windows
+    using native IANA timezone conversion, interval intersection and slot calculation.
+    Returns typed UTC/local slots, normalized participants and separate unsent invitation
+    subject/body. One window per participant; 15-minute candidate grid and at most
+    10 suggestions. Invalid dates, DST ambiguity and nonexistent times fail without
+    guessing. No calendar lookup, booking or message sending.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs:
+      - name: availability
+        type: array
+        label: Participant windows
+        required: true
+        description: '1 to 20 required participant objects: name, timezone (IANA,
+          e.g. Europe/Berlin), start and end (ISO local date-time). One window per
+          unique participant. Native Date rejects ambiguous/nonexistent DST times.
+          Multiple alternative windows per participant are not supported.'
+      - name: meeting_requirements
+        type: paragraph
+        label: Invitation note
+        required: false
+        description: Optional note copied into an unsent invitation. It cannot change
+          native scheduling parameters or calculated slots.
+      - name: duration_minutes
+        type: number
+        label: Meeting duration in minutes
+        required: true
+        description: Whole minutes from 1 to 480.
+      - name: display_timezone
+        type: string
+        label: Display timezone
+        required: true
+        description: IANA timezone, e.g. Europe/Berlin. Native Date resolves offsets
+          for each actual date.
+      - name: max_slots
+        type: number
+        label: Maximum suggestions
+        required: false
+        description: Optional whole number 1 to 10; omitted means 3. Native starts use
+          a 15-minute display-timezone grid.
+      expected_outputs:
+      - name: report
+        type: paragraph
+        label: Feasible meeting slots and invitation draft
+        required: true
+        description: Normalized availability, shared windows, duration checks, alternative
+          slots or a no-slot explanation, and an unsent invitation draft.
+      - name: slots
+        type: array
+        label: Candidate meeting slots
+        required: true
+      - name: common_window
+        type: object
+        label: Shared availability window
+        required: true
+      - name: participants
+        type: array
+        label: Normalized participant windows
+        required: true
+      - name: invitation_subject
+        type: string
+        label: Unsent invitation subject
+        required: true
+      - name: invitation_body
+        type: paragraph
+        label: Unsent invitation body
+        required: true
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: stop_success
+    step_kind: stop_success
+    display_name: The report is ready for human review. No external updates have been
+      performed.
+    optional: false
+    override:
+      stop_success:
+        message: ''
+  - step_id: validate_schedule
+    step_kind: template
+    display_name: Validate explicit participant windows and numeric bounds
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{%- set ns=namespace(ok=true,names=[]) -%}
+
+          {%- set maximum=p.max_slots|default(3) -%}{%- if maximum is none -%}{%-
+          set maximum=3 -%}{%- endif -%}
+
+          {%- if p.availability is not sequence or p.availability is string or p.availability|length<1
+          or p.availability|length>20 -%}{%- set ns.ok=false -%}{%- else -%}
+
+          {%- for r in p.availability -%}
+
+          {%- if r is not mapping -%}{%- set ns.ok=false -%}{%- else -%}
+
+          {%- for key in [''name'',''timezone'',''start'',''end''] -%}{%- if r[key]
+          is not defined or r[key] is not string or not r[key]|trim or r[key]|length>120
+          -%}{%- set ns.ok=false -%}{%- endif -%}{%- endfor -%}
+
+          {%- if r.name is defined and r.name is string -%}{%- set name=r.name|trim|lower
+          -%}{%- if name in ns.names -%}{%- set ns.ok=false -%}{%- endif -%}{%- set
+          ns.names=ns.names+[name] -%}{%- endif -%}
+
+          {%- endif -%}{%- endfor -%}{%- endif -%}
+
+          {%- if p.duration_minutes is not defined or p.duration_minutes is not number
+          or p.duration_minutes is boolean -%}{%- set ns.ok=false -%}{%- elif p.duration_minutes!=p.duration_minutes|int
+          or p.duration_minutes<1 or p.duration_minutes>480 -%}{%- set ns.ok=false
+          -%}{%- endif -%}
+
+          {%- if maximum is not number or maximum is boolean -%}{%- set ns.ok=false
+          -%}{%- elif maximum!=maximum|int or maximum<1 or maximum>10 -%}{%- set ns.ok=false
+          -%}{%- endif -%}
+
+          {%- if p.display_timezone is not defined or p.display_timezone is not string
+          or not p.display_timezone|trim or p.display_timezone|length>80 -%}{%- set
+          ns.ok=false -%}{%- endif -%}
+
+          {{- ''valid'' if ns.ok else ''invalid'' -}}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          source: state.inputs
+          required: true
+        result_target: state.schedule_validation
+  - step_id: require_schedule
+    step_kind: if
+    display_name: Reject missing or ambiguous scheduling input
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.schedule_validation
+  - step_id: resolve_max_slots
+    step_kind: template
+    display_name: Resolve bounded suggestion count
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ p.max_slots if p.max_slots is defined and p.max_slots is not none
+          else 3 }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          source: state.inputs
+          required: true
+        result_target: state.max_slots_text
+  - step_id: initialize_schedule
+    step_kind: set_variable
+    display_name: Initialize native scheduling collections
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.slots: []
+          state.participants: []
+        output_types:
+          state.slots: array
+          state.participants: array
+  - step_id: normalize_participant
+    step_kind: transform
+    for_each_id: normalize_participants
+    display_name: Convert dated availability to UTC without model offsets
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.participant_input
+        fields:
+        - to: name
+          from: name
+          type: text
+          required: true
+        - to: timezone
+          from: timezone
+          type: text
+          required: true
+        - to: start_local
+          from: start
+          type: text
+          required: true
+        - to: end_local
+          from: end
+          type: text
+          required: true
+        - to: start_utc
+          from: start
+          type: text
+          actions:
+          - action: date.to_utc
+            params:
+              timezone:
+                selector: timezone
+              dst_policy: error
+          required: true
+        - to: end_utc
+          from: end
+          type: text
+          actions:
+          - action: date.to_utc
+            params:
+              timezone:
+                selector: timezone
+              dst_policy: error
+          required: true
+        output_mode: mapped_only
+        result_target: state.normalized_participant
+  - step_id: make_participant_interval
+    step_kind: transform
+    for_each_id: normalize_participants
+    display_name: Build validated native participant interval
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.normalized_participant
+        fields:
+        - to: name
+          from: name
+          type: text
+          required: true
+        - to: timezone
+          from: timezone
+          type: text
+          required: true
+        - to: start_local
+          from: start_local
+          type: text
+          required: true
+        - to: end_local
+          from: end_local
+          type: text
+          required: true
+        - to: start_utc
+          from: start_utc
+          type: text
+          required: true
+        - to: end_utc
+          from: end_utc
+          type: text
+          required: true
+        - to: interval
+          from: start_utc
+          type: object
+          actions:
+          - action: date.interval_make
+            params:
+              end:
+                selector: end_utc
+          required: true
+        output_mode: mapped_only
+        result_target: state.participant_record
+  - step_id: collect_participant
+    step_kind: collect
+    for_each_id: normalize_participants
+    display_name: Collect normalized participant windows
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      collect:
+        mode: append
+        source: state.participant_record
+        target: state.participants
+  - step_id: prepare_intersection
+    step_kind: set_variable
+    display_name: Provide every required interval to native intersection
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.intersection_input.participants:
+            source: state.participants
+        output_types:
+          state.intersection_input.participants: array
+  - step_id: intersect_windows
+    step_kind: transform
+    display_name: Intersect all participant intervals natively
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.interval_list
+        fields:
+        - to: common_window
+          from: intervals
+          type: object
+          actions:
+          - action: date.interval_intersect_all
+          required: true
+        output_mode: mapped_only
+        result_target: state.overlap_result
+  - step_id: prepare_slots
+    step_kind: set_variable
+    display_name: Prepare native slot bounds and display timezone
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.common_window:
+            source: state.overlap_result.common_window
+          state.slot_input.interval:
+            source: state.overlap_result.common_window
+          state.slot_input.step_minutes: 15
+          state.slot_input.max_slots_text:
+            source: state.max_slots_text
+          state.slot_input.display_timezone:
+            source: state.inputs.display_timezone
+          state.slot_input.duration_minutes:
+            source: state.inputs.duration_minutes
+        output_types:
+          state.common_window: object
+          state.slot_input.interval: object
+          state.slot_input.step_minutes: number
+          state.slot_input.max_slots_text: text
+          state.slot_input.display_timezone: text
+          state.slot_input.duration_minutes: number
+  - step_id: coerce_slot_limit
+    step_kind: transform
+    display_name: Keep typed slot parameters without implicit model values
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.slot_input
+        fields:
+        - to: interval
+          from: interval
+          type: object
+          required: true
+        - to: duration_minutes
+          from: duration_minutes
+          type: number
+          required: true
+        - to: max_slots
+          from: max_slots_text
+          type: number
+          actions:
+          - action: number.coerce
+          required: true
+        - to: display_timezone
+          from: display_timezone
+          type: text
+          required: true
+        - to: step_minutes
+          from: step_minutes
+          type: number
+          required: true
+        output_mode: mapped_only
+        result_target: state.slot_parameters
+  - step_id: calculate_slots
+    step_kind: connector
+    display_name: Calculate complete meeting candidates on native local grid
+    connector_id: std.date
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        function_name: interval_slots
+        input_mapping:
+          value: state.slot_parameters.interval
+          max_slots: state.slot_parameters.max_slots
+          step_minutes: state.slot_parameters.step_minutes
+          align_minutes: state.slot_parameters.step_minutes
+          align_timezone: state.slot_parameters.display_timezone
+          duration_minutes: state.slot_parameters.duration_minutes
+        output_mapping:
+          result: state.slot_results.utc_slots
+  - step_id: prepare_display_slot
+    step_kind: set_variable
+    for_each_id: display_slots
+    display_name: Provide calculated UTC bounds for local display
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.slot_work.end:
+            source: state.slot_candidate.end
+          state.slot_work.start:
+            source: state.slot_candidate.start
+          state.slot_work.display_timezone:
+            source: state.inputs.display_timezone
+        output_types:
+          state.slot_work.end: text
+          state.slot_work.start: text
+          state.slot_work.display_timezone: text
+  - step_id: convert_display_slot
+    step_kind: transform
+    for_each_id: display_slots
+    display_name: Render actual offsets for each calculated date
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.slot_work
+        fields:
+        - to: start_utc
+          from: start
+          type: text
+          required: true
+        - to: end_utc
+          from: end
+          type: text
+          required: true
+        - to: timezone
+          from: display_timezone
+          type: text
+          required: true
+        - to: start_local
+          from: start
+          type: text
+          actions:
+          - action: date.to_timezone
+            params:
+              timezone:
+                selector: display_timezone
+          required: true
+        - to: end_local
+          from: end
+          type: text
+          actions:
+          - action: date.to_timezone
+            params:
+              timezone:
+                selector: display_timezone
+          required: true
+        output_mode: mapped_only
+        result_target: state.display_slot
+  - step_id: collect_slot
+    step_kind: collect
+    for_each_id: display_slots
+    display_name: Collect reusable timezone-aware candidates
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      collect:
+        mode: append
+        source: state.display_slot
+        target: state.slots
+  - step_id: draft_subject
+    step_kind: template
+    display_name: Prepare an unsent subject from native result
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''Meeting time suggestions'' if slots|length else ''No common meeting
+          time found'' }}'
+        format: text
+        inputs:
+        - name: slots
+          type: array
+          source: state.slots
+          required: true
+        result_target: state.invitation_subject
+  - step_id: draft_invitation
+    step_kind: template
+    display_name: Format an unsent invitation without model time arithmetic
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{% if slots|length %}Please review these {{ p.duration_minutes|int
+          }}-minute meeting suggestions in {{ p.display_timezone }}:
+
+          {% for s in slots %}- {{ s.start_local }} to {{ s.end_local }} (UTC {{ s.start_utc
+          }} to {{ s.end_utc }})
+
+          {% endfor %}{% else %}No complete {{ p.duration_minutes|int }}-minute meeting
+          fits the supplied participant windows. Please provide alternative availability.
+
+          {% endif %}{% if p.meeting_requirements|default('''') %}
+
+          Meeting note (copied as supplied): {{ p.meeting_requirements }}
+
+          {% endif %}
+
+          These are suggestions only. No calendar event was created and no invitation
+          was sent.'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          source: state.inputs
+          required: true
+        - name: slots
+          type: array
+          source: state.slots
+          required: true
+        result_target: state.invitation_body
+  - step_id: format_native_report
+    step_kind: template
+    display_name: Explain native candidates and explicit coverage limits
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '# Meeting availability review
+
+
+          Native date actions resolved IANA timezones for the supplied dates, intersected
+          every required window and calculated complete candidate slots. No model
+          calculated offsets, durations or overlaps.
+
+
+          ## Participants
+
+          {% for r in people %}- {{ r.name }} ({{ r.timezone }}): {{ r.start_local
+          }} to {{ r.end_local }}; UTC {{ r.start_utc }} to {{ r.end_utc }}.
+
+          {% endfor %}
+
+          ## Shared window
+
+          {% if common.empty %}No common window.
+
+          {% else %}{{ common.start }} to {{ common.end }} UTC.
+
+          {% endif %}
+
+          ## Unsent invitation
+
+          Subject: {{ subject }}
+
+
+          {{ body }}
+
+
+          ## Scope
+
+          One dated availability window per participant, at most 20 participants. Candidate
+          starts follow a 15-minute grid in {{ p.display_timezone }}; up to {{ maximum
+          }} suggestions, not an exhaustive calendar search. Invalid zones, dates,
+          reversed intervals and DST folds/gaps stop with an error rather than guessing.
+          No buffers or recurring windows are inferred. No calendar lookup, booking,
+          email or other external writes occurred.'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          source: state.inputs
+          required: true
+        - name: people
+          type: array
+          source: state.participants
+          required: true
+        - name: common
+          type: object
+          source: state.common_window
+          required: true
+        - name: subject
+          type: text
+          source: state.invitation_subject
+          required: true
+        - name: body
+          type: text
+          source: state.invitation_body
+          required: true
+        - name: maximum
+          type: text
+          source: state.max_slots_text
+          required: true
+        result_target: state.report
+  - step_id: expose_schedule_outputs
+    step_kind: set_variable
+    display_name: Return typed slots, participants and unsent invitation
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.outputs.slots:
+            source: state.slots
+          state.outputs.report:
+            source: state.report
+          state.outputs.participants:
+            source: state.participants
+          state.outputs.common_window:
+            source: state.common_window
+          state.outputs.invitation_body:
+            source: state.invitation_body
+          state.outputs.invitation_subject:
+            source: state.invitation_subject
+        output_types:
+          state.outputs.slots: array
+          state.outputs.report: text
+          state.outputs.participants: array
+          state.outputs.common_window: object
+          state.outputs.invitation_body: text
+          state.outputs.invitation_subject: text
+  - step_id: invalid_schedule
+    step_kind: stop_fail
+    display_name: Scheduling input needs correction
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      stop_fail:
+        message: Provide 1 to 20 unique participant windows with name, IANA timezone,
+          ISO start/end, duration 1..480 minutes, display timezone and optional max_slots 1..10.
+  - step_id: date_failure
+    step_kind: stop_fail
+    display_name: Date or timezone requires correction
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      stop_fail:
+        message: Native date processing failed. Check IANA timezone names, ISO dates,
+          end after start, and DST ambiguity or nonexistent local times. No model
+          offsets or booking were used.
+  - step_id: normalize_participants_failed
+    step_kind: stop_fail
+    for_each_id: normalize_participants
+    display_name: Correct participant or slot date input
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      stop_fail:
+        message: Native date conversion failed. Check IANA zone, ISO dates, end after
+          start, or an ambiguous/nonexistent DST time.
+  - step_id: display_slots_failed
+    step_kind: stop_fail
+    for_each_id: display_slots
+    display_name: Correct participant or slot date input
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      stop_fail:
+        message: Native date conversion failed. Check IANA zone, ISO dates, end after
+          start, or an ambiguous/nonexistent DST time.
+  - step_id: select_intervals
+    step_kind: transform
+    display_name: Select all typed participant intervals before intersection
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.intersection_input
+        fields:
+        - to: intervals
+          from: participants[*].interval
+          type: array
+          required: true
+        output_mode: mapped_only
+        result_target: state.interval_list
+  groups: []
+  for_each:
+  - for_each_id: normalize_participants
+    group_id: null
+    display_name: Resolve each participant using native IANA dates
+    over: state.inputs.availability
+    item_name: participant_input
+    index_name: participant_index
+    body:
+      kind: sequence
+      entry:
+        id: normalize_participant
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  - for_each_id: display_slots
+    group_id: null
+    display_name: Display each calculated candidate in the requested IANA timezone
+    over: state.slot_results.utc_slots
+    item_name: slot_candidate
+    index_name: slot_index
+    body:
+      kind: sequence
+      entry:
+        id: prepare_display_slot
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: validate_schedule
+        kind: step
+      target:
+        id: require_schedule
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: require_schedule
+        kind: step
+      target:
+        id: resolve_max_slots
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: require_schedule
+        kind: step
+      target:
+        id: invalid_schedule
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: resolve_max_slots
+        kind: step
+      target:
+        id: initialize_schedule
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: initialize_schedule
+        kind: step
+      target:
+        id: normalize_participants
+        kind: for_each
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: normalize_participant
+        kind: step
+      target:
+        id: make_participant_interval
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: make_participant_interval
+        kind: step
+      target:
+        id: collect_participant
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: normalize_participants
+        kind: for_each
+      target:
+        id: prepare_intersection
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: prepare_intersection
+        kind: step
+      target:
+        id: select_intervals
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: intersect_windows
+        kind: step
+      target:
+        id: prepare_slots
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: prepare_slots
+        kind: step
+      target:
+        id: coerce_slot_limit
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: coerce_slot_limit
+        kind: step
+      target:
+        id: calculate_slots
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: calculate_slots
+        kind: step
+      target:
+        id: display_slots
+        kind: for_each
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: prepare_display_slot
+        kind: step
+      target:
+        id: convert_display_slot
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: convert_display_slot
+        kind: step
+      target:
+        id: collect_slot
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: display_slots
+        kind: for_each
+      target:
+        id: draft_subject
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: draft_subject
+        kind: step
+      target:
+        id: draft_invitation
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: draft_invitation
+        kind: step
+      target:
+        id: format_native_report
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: format_native_report
+        kind: step
+      target:
+        id: expose_schedule_outputs
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: expose_schedule_outputs
+        kind: step
+      target:
+        id: stop_success
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: validate_schedule
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: require_schedule
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: resolve_max_slots
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: initialize_schedule
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: normalize_participant
+        kind: step
+      target:
+        id: normalize_participants_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: make_participant_interval
+        kind: step
+      target:
+        id: normalize_participants_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: collect_participant
+        kind: step
+      target:
+        id: normalize_participants_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: prepare_intersection
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: intersect_windows
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: prepare_slots
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: coerce_slot_limit
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: calculate_slots
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: prepare_display_slot
+        kind: step
+      target:
+        id: display_slots_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: convert_display_slot
+        kind: step
+      target:
+        id: display_slots_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: collect_slot
+        kind: step
+      target:
+        id: display_slots_failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: draft_subject
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: draft_invitation
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: format_native_report
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: expose_schedule_outputs
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: normalize_participants
+        kind: for_each
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: display_slots
+        kind: for_each
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: collect_participant
+        kind: step
+      target:
+        kind: for_each_exit
+        lane_id: null
+        for_each_id: normalize_participants
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: collect_slot
+        kind: step
+      target:
+        kind: for_each_exit
+        lane_id: null
+        for_each_id: display_slots
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: select_intervals
+        kind: step
+      target:
+        id: intersect_windows
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: select_intervals
+        kind: step
+      target:
+        id: date_failure
+        kind: step
+      outcome:
+        name: error
+    entry:
+      id: validate_schedule
+      kind: step
+    schema_version: 1
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

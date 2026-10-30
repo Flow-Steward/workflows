@@ -222,8 +222,7 @@ workflows:
       stop_fail:
         message: The uploaded PDF produced no usable text, or its text exceeded the
           Docling extension's inline limit. For a scanned PDF enable OCR in the Docling
-          service; split very large documents into smaller files. For conversion errors,
-          check the PDF and the configured Docling service. No model answers were
+          service; split very large documents into smaller files. No model answers were
           generated.
   - step_id: no_report
     step_kind: stop_fail
@@ -243,6 +242,13 @@ workflows:
         condition:
           operator: truthy
           selector: state.extraction_truncated
+  - step_id: docling_failed
+    step_kind: stop_fail
+    display_name: Docling could not read the PDF
+    optional: false
+    override:
+      stop_fail:
+        message: Docling could not convert the PDF. Check the project's Docling connection (service address and API key) and retry; the Docling step in Job Details shows the HTTP status. No model analysis ran and nothing was sent or created.
   groups: []
   for_each: []
   execution_graph:
@@ -315,7 +321,7 @@ workflows:
         id: read_page
         kind: step
       target:
-        id: no_content
+        id: docling_failed
         kind: step
       outcome:
         name: error

@@ -1,0 +1,202 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-10-30T10:00:00+00:00'
+  exported_by: admin
+  source_workflow_id: imap_mailbox_search
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.3
+  triggers: []
+workflows:
+- workflow_id: imap_mailbox_search
+  version: 1.1.1
+  display_name: Search an IMAP mailbox for new messages
+  description: Search the INBOX of a connected IMAP mailbox and list the messages it
+    holds, newest search page first. Returns the message summaries (sender, subject,
+    date, UID) and a readable report, ready for a following step such as a supplier
+    email workflow. Reads only; no message is moved, flagged or deleted.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      input_schema: {}
+      strict_inputs: true
+      expected_inputs: []
+      expected_outputs:
+      - name: report
+        type: paragraph
+        label: Mailbox search report
+        required: true
+        description: How many messages the search returned and, for each one, its date,
+          sender, subject and UID.
+      - name: message_summaries
+        type: array
+        label: Message summaries
+        required: true
+        description: One object per message with uid, date, from, to, cc, subject, message_id,
+          flags and size_bytes, as the IMAP extension returns them.
+      - name: truncated
+        type: boolean
+        label: More messages than one search page
+        required: false
+        description: True when the mailbox held more matches than one search page returns.
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags: []
+  steps:
+  - step_id: read_mailbox
+    step_kind: connector
+    display_name: Read mailbox
+    connector_id: extension.flowsteward.imap-mailbox
+    connector_install_id: 4ecd5a37-29b7-4ae2-8cb9-0924422150a3
+    input_mapping_jsonb: &id001
+      mailbox: literal:INBOX
+    output_mapping_jsonb: &id002
+      messages: state.message_summaries
+      truncated: state.truncated
+    connection_binding_jsonb:
+      connection_id: conn_5e1d0c9b8a7f6e5d
+    optional: false
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        action_id: ''
+        extension_id: flowsteward.imap-mailbox
+        operation_id: search_messages
+        function_name: ''
+        input_mapping: *id001
+        output_mapping: *id002
+        connection_binding:
+          connection_id: conn_5e1d0c9b8a7f6e5d
+  - step_id: report
+    step_kind: template
+    display_name: List the messages found
+    optional: false
+    override:
+      template:
+        text: '# Mailbox search
+
+
+          Mailbox: INBOX. Messages returned: {{ messages|length if messages else 0 }}.{% if truncated %}
+          More messages match than one search page holds; only the first page is listed.{% endif %}
+
+
+          {% if messages %}| Date | From | Subject | UID |
+
+          |---|---|---|---|
+
+          {% for m in messages %}| {{ m.date or ''—'' }} | {{ m["from"] or ''—'' }} | {{ m.subject or ''(no subject)'' }} | {{ m.uid }} |
+
+          {% endfor %}{% else %}No messages were found in the mailbox.{% endif %}
+
+
+          Read only: no message was moved, flagged or deleted.'
+        format: markdown
+        inputs:
+        - name: messages
+          type: array
+          source: state.message_summaries
+          required: false
+        - name: truncated
+          type: boolean
+          source: state.truncated
+          required: false
+        result_target: state.report
+    error_policy:
+      on_error: route_to_step
+  - step_id: workflow_success
+    step_kind: stop_success
+    display_name: Complete workflow
+    optional: false
+    override:
+      stop_success:
+        message: Mailbox search report ready.
+  - step_id: mailbox_failed
+    step_kind: stop_fail
+    display_name: The mailbox could not be read
+    optional: false
+    override:
+      stop_fail:
+        message: The IMAP mailbox could not be searched. Check the project's IMAP connection (host, port, TLS mode, username and password) and use Test on the extension page; the Read mailbox step in Job Details shows the server's answer. Nothing was changed in the mailbox.
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: read_mailbox
+    edges:
+    - source:
+        kind: step
+        id: read_mailbox
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: report
+      rework: false
+    - source:
+        kind: step
+        id: read_mailbox
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: mailbox_failed
+      rework: false
+    - source:
+        kind: step
+        id: report
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: workflow_success
+      rework: false
+    - source:
+        kind: step
+        id: report
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: mailbox_failed
+      rework: false
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: 4ecd5a37-29b7-4ae2-8cb9-0924422150a3
+    display_name: Generic IMAP Mailbox
+    required: true
+    sources:
+    - read_mailbox.connector_install_id
+    - workflow_runtime_dependencies
+    metadata:
+      dependency_kind: extension_install
+    enabled: true
+    extension_id: flowsteward.imap-mailbox
+    version: 0.2.1
+  project_connections:
+  - connection_ref: conn_5e1d0c9b8a7f6e5d
+    display_name: IMAP mailbox connection
+    required: true
+    sources:
+    - read_mailbox.connection_binding
+    - workflow_runtime_dependencies
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow
