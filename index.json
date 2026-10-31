@@ -1,8 +1,271 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-10-31.5884e019",
-  "published_at": "2026-10-31T06:49:00Z",
+  "catalog_revision": "2026-10-31.faa8f4c5",
+  "published_at": "2026-10-31T17:25:10Z",
   "items": [
+    {
+      "item_id": "catalog_pdf_questions",
+      "version": "1.1.0",
+      "name": "Answer questions about an uploaded PDF with source evidence",
+      "summary": "Upload one PDF and ask focused questions.",
+      "description": "Upload one PDF and ask focused questions. The native Docling extension extracts the document text, and the model answers with short verbatim quotations and explicit unknowns. Up to 60,000 characters of text are analysed; the report says when a longer document was read only in part. Requires the Docling extension 0.3.0 or later, a configured Docling service and a model connection. No public-URL fallback, persistent chat memory, guaranteed page citations or external actions.",
+      "categories": [
+        "documents"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.docling"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "extension",
+          "label": "Docling Document Extraction",
+          "ref": "flowsteward.docling",
+          "required": true
+        },
+        {
+          "kind": "connection",
+          "label": "Docling Document Extraction connection",
+          "required": true
+        },
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/documents/catalog_pdf_questions_1_1_0.yaml",
+      "workflow_yaml_bytes": 15595,
+      "workflow_yaml_sha256": "cddbda7106aa0b2303a5c4d6fa3d2cf8f575fcdee5d41db1a4dea605d97b2f22",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_appointment_request_review",
+      "version": "1.0.0",
+      "name": "Check an appointment request against service and duration rules",
+      "summary": "Paste a client's appointment request and your service list with maximum durations.",
+      "description": "Paste a client's appointment request and your service list with maximum durations. The model reads the requested service, duration and preferred time; fixed rules then decide whether the request fits, is outside the rules or needs clarification, and the report shows why with verbatim quotes. No calendar lookup, booking or messages.",
+      "categories": [
+        "operations"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/operations/catalog_appointment_request_review.yaml",
+      "workflow_yaml_bytes": 15458,
+      "workflow_yaml_sha256": "0ef8a0a9ca363ffed0a36c6852f15d66419b461fed6303bdcee3dae1588486e5",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_social_content_pack",
+      "version": "1.1.0",
+      "name": "Create a social media content pack from an article",
+      "summary": "Prepare English social drafts from one public HTTP/HTTPS article, a campaign brief and an audience profile.",
+      "description": "Prepare English social drafts from one public HTTP/HTTPS article, a campaign brief and an audience profile. Returns separate LinkedIn, Instagram and X text fields, a proposed visual brief and a human review report. A dedicated Social Copywriter uses the configured native model provider. Native checks reject empty drafts and X text longer than 280 characters including spaces and links. Source coverage is disclosed, with at most 30,000 reader-returned characters supplied for drafting. No image generation, publishing, scheduling or sending.",
+      "categories": [
+        "marketing"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [
+        {
+          "item_id": "catalog_public_webpage_reader",
+          "name": "Read one public webpage with source metadata"
+        }
+      ],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/4d2efd9e56dcb7a7d9d9aec37c8765cd43473b72/workflows/marketing/catalog_social_content_pack_1_1_0.yaml",
+      "workflow_yaml_bytes": 25831,
+      "workflow_yaml_sha256": "13c781d1490836a44f18577e4bf15d583820e3638f341af4db38a286fa462065",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_research_paper_brief",
+      "version": "1.0.0",
+      "name": "Create a structured research-paper brief with evidence",
+      "summary": "Upload a research paper PDF and state your research focus.",
+      "description": "Upload a research paper PDF and state your research focus. Docling extracts the text and the model returns the title, authors, research question, method, findings with verbatim quotes, limitations and how the paper relates to your focus. The report flags any quote the text does not contain. Up to 60,000 characters of paper text are analysed, which covers most papers; the report says when it is partial.",
+      "categories": [
+        "documents"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.docling"
+      ],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "extension",
+          "label": "Docling Document Extraction",
+          "ref": "flowsteward.docling",
+          "required": true
+        },
+        {
+          "kind": "connection",
+          "label": "Docling Document Extraction connection",
+          "required": true
+        },
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/documents/catalog_research_paper_brief.yaml",
+      "workflow_yaml_bytes": 15552,
+      "workflow_yaml_sha256": "1040f49307568c15c5092c92f6fed8bbec85119381366936e47140389b138ddd",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_email_reply_draft",
+      "version": "1.1.0",
+      "name": "Draft a customer email reply from approved policies",
+      "summary": "Paste a customer email and optional approved policy to receive separate category, boolean human-escalation flag, subject, reply body and review route, plus a r…",
+      "description": "Paste a customer email and optional approved policy to receive separate category, boolean human-escalation flag, subject, reply body and review route, plus a readable report. Uses a native model provider and reusable policy skill. Missing policy permits only a neutral acknowledgement requiring human review. Manual input only; mailbox reading, Gmail draft creation, sending and account changes are not implemented.",
+      "categories": [
+        "support"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/support/catalog_email_reply_draft_1_1_0.yaml",
+      "workflow_yaml_bytes": 16986,
+      "workflow_yaml_sha256": "ac970d912437de47df6e17a2b11a1920a2512ad882389beacce8781af38b3a59",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_personalized_outreach",
+      "version": "1.1.0",
+      "name": "Draft personalized marketing emails from company research",
+      "summary": "Draft personalized English outreach from one public company webpage, a recipient profile and an approved campaign brief.",
+      "description": "Draft personalized English outreach from one public company webpage, a recipient profile and an approved campaign brief. Returns two subjects, an initial email, a separate follow-up and a personalization note as individual fields plus a review report. Draft-only mode is the default. Optional initial-email sending requires a recipient and human approval of the exact address, subject and body; follow-ups are never sent automatically. Uses the native provider and Outgoing Email extensions; an approved email is sent through the project's Outgoing Email connection. Recipient profile text is sent to the configured model provider; include only appropriate information.",
+      "categories": [
+        "marketing"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "extension",
+          "label": "Outgoing Email",
+          "ref": "flowsteward.outgoing-email",
+          "required": true
+        },
+        {
+          "kind": "connection",
+          "label": "Outgoing Email connection",
+          "required": true
+        },
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [
+        {
+          "item_id": "catalog_public_webpage_reader",
+          "name": "Read one public webpage with source metadata"
+        }
+      ],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/marketing/catalog_personalized_outreach_1_1_0.yaml",
+      "workflow_yaml_bytes": 31358,
+      "workflow_yaml_sha256": "9691a1fd6f7bec4255b49b64fface369cde4293236a14b4d486b1bd1508e3dab",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
     {
       "item_id": "catalog_webpages_csv",
       "version": "1.0.1",
@@ -39,6 +302,42 @@
       "updated_at": "2026-10-31T06:49:00Z"
     },
     {
+      "item_id": "catalog_cv_evidence_brief",
+      "version": "1.1.0",
+      "name": "Prepare a CV evidence brief for human review",
+      "summary": "Paste one candidate CV and explicit job-related criteria to receive a line-cited evidence matrix, missing information and neutral follow-up questions for a hum…",
+      "description": "Paste one candidate CV and explicit job-related criteria to receive a line-cited evidence matrix, missing information and neutral follow-up questions for a human reviewer. Uses the configured native LLM provider extension. No candidate ranking, hire/reject decision, contact discovery, Drive ingestion, Sheets updates or messages.",
+      "categories": [
+        "hr"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/hr/catalog_cv_evidence_brief_1_1_0.yaml",
+      "workflow_yaml_bytes": 13974,
+      "workflow_yaml_sha256": "58330437d28ce76046bc619d7573cae4da0917c27b48f77b0ca8c76a44ff9be4",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
       "item_id": "catalog_lead_csv_qualification",
       "version": "1.0.0",
       "name": "Qualify a lead CSV with explicit size and budget rules",
@@ -68,11 +367,100 @@
       "updated_at": "2026-10-29T12:08:40Z"
     },
     {
-      "item_id": "imap_mailbox_search",
+      "item_id": "catalog_company_research",
       "version": "1.1.0",
+      "name": "Research a company from its website",
+      "summary": "Turn one public company webpage into an English company profile and a sales preparation brief.",
+      "description": "Turn one public company webpage into an English company profile and a sales preparation brief. Enter the webpage URL and read the report in the run results. Separates observed facts, sales hypotheses and unanswered qualification questions. Uses Jina Reader and the model configured for Web Research Analyst through a Flow Steward LLM provider extension. Covers one page and at most its first 30,000 characters; does not search or crawl the rest of the website.",
+      "categories": [
+        "sales"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [
+        {
+          "item_id": "catalog_public_webpage_reader",
+          "name": "Read one public webpage with source metadata"
+        }
+      ],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/4d2efd9e56dcb7a7d9d9aec37c8765cd43473b72/workflows/sales/catalog_company_research_1_1_0.yaml",
+      "workflow_yaml_bytes": 20128,
+      "workflow_yaml_sha256": "0841a08905961cc42c5cef7b5bae7227de7bf95cab1fb77493b935dacada59cb",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_invoice_pdf_review",
+      "version": "1.0.0",
+      "name": "Review an uploaded invoice PDF",
+      "summary": "Upload an invoice PDF.",
+      "description": "Upload an invoice PDF. Docling extracts the text, the model reads the header fields, line items and printed totals, and fixed rules check that quantity x price, the line sum, subtotal + tax and the total agree. Returns the fields as separate outputs and a report that flags missing fields and arithmetic differences. Reads up to 20,000 characters of invoice text and says so when the document is longer. Nothing is approved, paid or posted.",
+      "categories": [
+        "finance"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.docling"
+      ],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "extension",
+          "label": "Docling Document Extraction",
+          "ref": "flowsteward.docling",
+          "required": true
+        },
+        {
+          "kind": "connection",
+          "label": "Docling Document Extraction connection",
+          "required": true
+        },
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/finance/catalog_invoice_pdf_review.yaml",
+      "workflow_yaml_bytes": 20137,
+      "workflow_yaml_sha256": "2434172cd605af09e8d2c3f8b50fdfcd327da291ee530df20c833702c09cacb2",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "imap_mailbox_search",
+      "version": "1.1.1",
       "name": "Search an IMAP mailbox for new messages",
-      "summary": "Search the INBOX of an IMAP mailbox and keep the matching messages for the next step.",
-      "description": "Search the INBOX of an IMAP mailbox and keep the matching messages for the next step. Use it as the first step of a supplier email workflow.",
+      "summary": "Search the INBOX of a connected IMAP mailbox and list the messages it holds, newest search page first.",
+      "description": "Search the INBOX of a connected IMAP mailbox and list the messages it holds, newest search page first. Returns the message summaries (sender, subject, date, UID) and a readable report, ready for a following step such as a supplier email workflow. Reads only; no message is moved, flagged or deleted.",
       "categories": [
         "email"
       ],
@@ -81,7 +469,8 @@
         "flowsteward.imap-mailbox"
       ],
       "trigger_types": [
-        "schedule"
+        "manual",
+        "sub_workflow"
       ],
       "setup_requirements": [
         {
@@ -89,25 +478,30 @@
           "label": "Generic IMAP Mailbox",
           "ref": "flowsteward.imap-mailbox",
           "required": true
+        },
+        {
+          "kind": "connection",
+          "label": "Generic IMAP Mailbox connection",
+          "required": true
         }
       ],
       "includes": [],
       "bundle_schema": "platform.workflow_bundle.v2",
       "compatible_flow_steward": {
-        "min": "0.7.16",
+        "min": "0.9.3",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/6a508871a14d34bb85b6d356b8757b74e9fadd8e/workflows/email/imap_mailbox_search_1_1_0.yaml",
-      "workflow_yaml_bytes": 2289,
-      "workflow_yaml_sha256": "4d4bcfd91015489730fe542f384e56a2a124d5cd963ad26aaca65025038bca20",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/email/imap_mailbox_search_1_1_1.yaml",
+      "workflow_yaml_bytes": 5887,
+      "workflow_yaml_sha256": "32e641670b48d42a6b4a29d854efeee2a361521947350fa566001791537f1655",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-16T09:45:57Z",
-      "updated_at": "2026-10-16T09:45:57Z"
+      "updated_at": "2026-10-31T17:25:10Z"
     },
     {
       "item_id": "catalog_meeting_slots",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Suggest meeting slots from participant availability",
       "summary": "Find meeting suggestions from 1 to 20 explicit participant windows using native IANA timezone conversion, interval intersection and slot calculation.",
       "description": "Find meeting suggestions from 1 to 20 explicit participant windows using native IANA timezone conversion, interval intersection and slot calculation. Returns typed UTC/local slots, normalized participants and separate unsent invitation subject/body. One window per participant; 15-minute candidate grid and at most 10 suggestions. Invalid dates, DST ambiguity and nonexistent times fail without guessing. No calendar lookup, booking or message sending.",
@@ -127,17 +521,231 @@
         "min": "0.9.3",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/6ab841e24fd2a4166bd23770574b671ffd9ed736/workflows/productivity/catalog_meeting_slots.yaml",
-      "workflow_yaml_bytes": 32261,
-      "workflow_yaml_sha256": "df834f38293ead9ee62a6f95452b891287c25346a1a299d912de0b72b2f55971",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/productivity/catalog_meeting_slots_1_0_1.yaml",
+      "workflow_yaml_bytes": 32271,
+      "workflow_yaml_sha256": "391a220b01026a4f099acbadf24ddf3e6cd25f8c15bfe2856eae79c55a0e1ce0",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-29T12:08:40Z",
-      "updated_at": "2026-10-29T12:08:40Z"
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_video_transcript_summary",
+      "version": "1.0.0",
+      "name": "Summarize a video transcript with source quotes",
+      "summary": "Paste a video or podcast transcript and a reading brief and get a focused summary, an ordered outline where every point carries a verbatim quote, key takeaways…",
+      "description": "Paste a video or podcast transcript and a reading brief and get a focused summary, an ordered outline where every point carries a verbatim quote, key takeaways and open questions. The report flags any quote the transcript does not contain. Works on supplied text only; it does not download videos or captions. Up to 60,000 characters are analysed.",
+      "categories": [
+        "media"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/ebde3ea954ca530a0c9b4fe5fb3168c596f2e9ff/workflows/media/catalog_video_transcript_summary.yaml",
+      "workflow_yaml_bytes": 11027,
+      "workflow_yaml_sha256": "1046b6986687f9e8f71490f8f27ec71fd099b08da957b8cadcc8dd2956112d02",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_sales_csv_review",
+      "version": "1.1.0",
+      "name": "Summarize sales CSV by region with a downloadable report",
+      "summary": "Create a one-time regional sales review from an uploaded UTF-8 CSV.",
+      "description": "Create a one-time regional sales review from an uploaded UTF-8 CSV. Configure exact source headers for order ID, region and revenue; choose automatic, comma, semicolon or tab separation, decimal-point or decimal-comma amounts, and an optional explicit currency. Native operations validate rows and unique order IDs, calculate revenue totals and order counts, and check complete coverage of 1–1000 regional groups before model interpretation. Space-grouped numbers must be cleaned before upload. Returns reusable regional_summary data and a non-empty model-assisted report; the CSV download is available in Job Details, not as a callable File output. Invalid, empty or oversized regional summaries stop with an error; intermediate job files may remain. No currency conversion or external updates.",
+      "categories": [
+        "sales"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/sales/catalog_sales_csv_review_1_1_0.yaml",
+      "workflow_yaml_bytes": 40642,
+      "workflow_yaml_sha256": "0c04dbfb104117ab501a54d28e6f66cf64794fc237fa643926dc11027dd2d02c",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_support_triage_review",
+      "version": "1.1.0",
+      "name": "Triage a support request into a suggested review queue",
+      "summary": "Classify one supplied support issue using a dedicated native provider-backed agent, then route typed category output through native Switch branches to a sugges…",
+      "description": "Classify one supplied support issue using a dedicated native provider-backed agent, then route typed category output through native Switch branches to a suggested review queue. Returns a plain-language summary, evidence and policy-grounded draft reply for human review. No helpdesk/inbox connection, actual assignment, resolution or send.",
+      "categories": [
+        "support"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/4d2efd9e56dcb7a7d9d9aec37c8765cd43473b72/workflows/support/catalog_support_triage_review_1_1_0.yaml",
+      "workflow_yaml_bytes": 23710,
+      "workflow_yaml_sha256": "fb32c8579e5de65d6e6325376c8ce308f091b2f4cb26992cee4a1ea9ff58d19a",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_meeting_actions",
+      "version": "1.0.0",
+      "name": "Turn a meeting transcript into decisions and action items",
+      "summary": "Paste a meeting transcript and get a summary, decisions, accepted action items with owner and due date as said, unaccepted proposals, open questions and a foll…",
+      "description": "Paste a meeting transcript and get a summary, decisions, accepted action items with owner and due date as said, unaccepted proposals, open questions and a follow-up email draft. Each decision and action item carries a verbatim quote; the report flags any quote the transcript does not contain. Owners and dates are never guessed. Nothing is sent and no tasks are created. Up to 60,000 transcript characters are analysed.",
+      "categories": [
+        "productivity"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/ebde3ea954ca530a0c9b4fe5fb3168c596f2e9ff/workflows/productivity/catalog_meeting_actions.yaml",
+      "workflow_yaml_bytes": 14527,
+      "workflow_yaml_sha256": "cd4102a40783635605081d944186bb5a9b9331a138f2d5d220cd5ee69273b345",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_customer_feedback",
+      "version": "1.1.0",
+      "name": "Turn customer feedback into a prioritized action plan",
+      "summary": "Review up to 100 feedback records and 30,000 characters.",
+      "description": "Review up to 100 feedback records and 30,000 characters. Get validated sentiment ID lists, calculated counts, source-grounded themes and proposed actions for human review. Duplicate or missing IDs and larger inputs stop before a report is accepted. Manual text input only; CSV upload, batch processing and external system updates are not implemented. Uses a native model provider with a reusable classification skill.",
+      "categories": [
+        "support"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/support/catalog_customer_feedback_1_1_0.yaml",
+      "workflow_yaml_bytes": 22361,
+      "workflow_yaml_sha256": "f1d499a45141b0ce51265e0ac8489a7eb318b92b738b18c631086e8d51bb6b4d",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "catalog_email_digest",
+      "version": "1.0.0",
+      "name": "Turn email messages into a digest and action queue",
+      "summary": "Paste a batch of email messages and get a digest, the action items addressed to you with verbatim quotes, dates to watch and unsent reply drafts.",
+      "description": "Paste a batch of email messages and get a digest, the action items addressed to you with verbatim quotes, dates to watch and unsent reply drafts. Works on pasted text only: no inbox access, sending, archiving or task creation. For a live mailbox, combine it with the IMAP mailbox search template. Up to 60,000 characters are analysed.",
+      "categories": [
+        "email"
+      ],
+      "tags": [],
+      "integrations": [],
+      "trigger_types": [
+        "manual"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.4",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/ebde3ea954ca530a0c9b4fe5fb3168c596f2e9ff/workflows/email/catalog_email_digest.yaml",
+      "workflow_yaml_bytes": 13166,
+      "workflow_yaml_sha256": "e680d4fce7352f4d7b6e73c7c2d0e30f16b8f9b0a05e686222f350d2f6f625b3",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-10-31T17:25:10Z",
+      "updated_at": "2026-10-31T17:25:10Z"
     }
   ],
   "integration_labels": {
-    "flowsteward.imap-mailbox": "Generic IMAP Mailbox"
+    "flowsteward.docling": "Docling Document Extraction",
+    "flowsteward.imap-mailbox": "Generic IMAP Mailbox",
+    "flowsteward.outgoing-email": "Outgoing Email"
   },
   "category_labels": {
     "ai": "AI",
