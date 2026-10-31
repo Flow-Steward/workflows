@@ -1,7 +1,10 @@
 name: Validate submission
 
+# pull_request_target runs this file and the validator as they are on the base branch,
+# so a pull request cannot change the checks that decide whether it passes. The
+# submission is only read: its YAML is parsed with yaml.safe_load, never executed.
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
 
 permissions:
@@ -11,18 +14,26 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           # The base branch is needed to refuse edits to already published files.
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - name: Use the base branch's validator, not the submission's
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git checkout "origin/${BASE_REF}" -- scripts requirements.txt
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt
+      - run: pip install --require-hashes -r requirements.txt
       - name: Test the index builder
         run: python -m pytest -q scripts
       - name: Check the submitted workflows
-        run: python scripts/build_index.py --check --base "origin/${{ github.base_ref }}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python scripts/build_index.py --check --base "origin/${BASE_REF}"
       - name: The categories are the extension catalog's
         # One list for both catalogs: change it in Flow-Steward/extensions, then copy it here.
         run: curl -fsSL https://raw.githubusercontent.com/Flow-Steward/extensions/main/categories.json | diff - categories.json
