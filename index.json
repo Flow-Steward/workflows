@@ -1,11 +1,11 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-10-29.19f1bbab",
-  "published_at": "2026-10-29T12:08:40Z",
+  "catalog_revision": "2026-10-31.5884e019",
+  "published_at": "2026-10-31T06:49:00Z",
   "items": [
     {
       "item_id": "catalog_webpages_csv",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Export public webpages to a source CSV",
       "summary": "Export a list of 1 to 100 public webpage URLs to an ordered CSV and page records.",
       "description": "Export a list of 1 to 100 public webpage URLs to an ordered CSV and page records. Each URL uses the shared public reader. Failed reads become individual rows with status and error details while readable pages are preserved; repeated URLs remain separate records. Missing page titles fall back to the requested URL. The report shows readable and total page counts. Download the generated CSV from Job Details. Returns pages and CSV metadata; first-class returned File mapping and optional database storage are not connected. No model rewriting, sign-in, linked-page discovery or external database updates.",
@@ -30,13 +30,13 @@
         "min": "0.9.3",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/6ab841e24fd2a4166bd23770574b671ffd9ed736/workflows/data/catalog_webpages_csv.yaml",
-      "workflow_yaml_bytes": 26249,
-      "workflow_yaml_sha256": "42b4e421c67242d344133735bf304b2305182d153289f2dd497e23641746dfdb",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9375e24ac685bb21cf79a674d5f8acf7ef327b7d/workflows/data/catalog_webpages_csv_1_0_1.yaml",
+      "workflow_yaml_bytes": 26387,
+      "workflow_yaml_sha256": "8d7581b05f2def01efdb53183a228e8a82d92173e72b7adf02f13ce80a9b70c8",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-29T12:08:40Z",
-      "updated_at": "2026-10-29T12:08:40Z"
+      "updated_at": "2026-10-31T06:49:00Z"
     },
     {
       "item_id": "catalog_lead_csv_qualification",
