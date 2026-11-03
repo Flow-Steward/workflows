@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-03.faa8f4c5",
-  "published_at": "2026-11-03T11:50:51Z",
+  "catalog_revision": "2026-11-03.94b5f99b",
+  "published_at": "2026-11-03T19:31:59Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -86,6 +86,54 @@
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
       "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "ux_feedback_9881",
+      "version": "1.0.0",
+      "name": "Classify customer feedback with allowed tags",
+      "summary": "Tag new customer feedback in batches and update the feedback table.",
+      "description": "Tag new customer feedback in batches and update the feedback table. Adapted from https://n8n.io/workflows/9881/. Offline executor qualification: 15 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "support"
+      ],
+      "tags": [],
+      "integrations": [
+        "flowsteward.google-workspace"
+      ],
+      "trigger_types": [
+        "manual",
+        "schedule",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [
+        {
+          "item_id": "ux_feedback_batch",
+          "name": "Classify one feedback batch"
+        },
+        {
+          "item_id": "ux_feedback_update",
+          "name": "Update one customer feedback row"
+        }
+      ],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/support/ux_feedback_9881.yaml",
+      "workflow_yaml_bytes": 42222,
+      "workflow_yaml_sha256": "d3124c40569989ffb71e109ca39bc12fa402ee2c8a6998282cdaf6be95c2a7d1",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
     },
     {
       "item_id": "catalog_social_content_pack",
@@ -175,6 +223,42 @@
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
       "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "security_daily_20438",
+      "version": "0.1.0",
+      "name": "Daily security incident digest",
+      "summary": "Email a daily digest of security incidents from the incident log.",
+      "description": "Email a daily digest of security incidents from the incident log. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "operations"
+      ],
+      "tags": [
+        "migration",
+        "security-patrol"
+      ],
+      "integrations": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_daily_20438.yaml",
+      "workflow_yaml_bytes": 12125,
+      "workflow_yaml_sha256": "ef6764713f54316290e2b357433dc2cd0c3b4e58796755d0e6d71fafe5c8e8ec",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
     },
     {
       "item_id": "catalog_email_reply_draft",
@@ -300,6 +384,91 @@
       "verification_status": "verified",
       "added_at": "2026-10-29T12:08:40Z",
       "updated_at": "2026-10-31T06:49:00Z"
+    },
+    {
+      "item_id": "invoice_reminders_20173",
+      "version": "0.1.0",
+      "name": "Invoice reminders, escalation and weekly aging",
+      "summary": "Remind customers about overdue invoices, escalate and produce an aging report.",
+      "description": "Remind customers about overdue invoices, escalate and produce an aging report. Adapted from https://n8n.io/workflows/20173/. Offline executor qualification: 34 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "finance"
+      ],
+      "tags": [
+        "business-equivalent",
+        "disabled",
+        "migration",
+        "n8n"
+      ],
+      "integrations": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [],
+      "includes": [
+        {
+          "item_id": "invoice_stage_write_20173",
+          "name": "Record accepted invoice stage while preserving complete table"
+        }
+      ],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/finance/invoice_reminders_20173.yaml",
+      "workflow_yaml_bytes": 51696,
+      "workflow_yaml_sha256": "dfb25347f8db367c4ab8479cfe630b798ff6352a0d8509ee6e1bca40ac207c69",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
+    },
+    {
+      "item_id": "security_monthly_20438",
+      "version": "0.1.0",
+      "name": "Monthly security incident review",
+      "summary": "Prepare a monthly incident summary and AI review for security operations.",
+      "description": "Prepare a monthly incident summary and AI review for security operations. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "operations"
+      ],
+      "tags": [
+        "migration",
+        "security-patrol"
+      ],
+      "integrations": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_monthly_20438.yaml",
+      "workflow_yaml_bytes": 19907,
+      "workflow_yaml_sha256": "3e2dd18e94e2e46224d245616341bd534369049cc3d4991380c250aa4bf8eb1b",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
     },
     {
       "item_id": "catalog_cv_evidence_brief",
@@ -498,6 +667,84 @@
       "verification_status": "verified",
       "added_at": "2026-10-16T09:45:57Z",
       "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "security_intake_20438",
+      "version": "0.1.0",
+      "name": "Security incident intake and escalation",
+      "summary": "Classify patrol incidents, log reports and escalate urgent incidents by email.",
+      "description": "Classify patrol incidents, log reports and escalate urgent incidents by email. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "operations"
+      ],
+      "tags": [
+        "migration",
+        "security-patrol"
+      ],
+      "integrations": [
+        "flowsteward.outgoing-email",
+        "flowsteward.google-workspace"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_intake_20438.yaml",
+      "workflow_yaml_bytes": 41446,
+      "workflow_yaml_sha256": "5a1bdf0e99ce9ff0d142e708fa0cced867977823978faaced2b4c1004b449677",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
+    },
+    {
+      "item_id": "seller_weekly_reports_20542",
+      "version": "1.0.0",
+      "name": "Seller weekly property reports (20542)",
+      "summary": "Email sellers a weekly property report from listings, leads and viewings.",
+      "description": "Email sellers a weekly property report from listings, leads and viewings. Adapted from https://n8n.io/workflows/20542/. Offline executor qualification: 10 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "sales"
+      ],
+      "tags": [
+        "20542",
+        "migration"
+      ],
+      "integrations": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/sales/seller_weekly_reports_20542.yaml",
+      "workflow_yaml_bytes": 34833,
+      "workflow_yaml_sha256": "fa4cff9eb5ebc3a558852f5ac4175f6e15b4b22979fa3d16b09ad71388f804a1",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
     },
     {
       "item_id": "catalog_meeting_slots",
@@ -740,6 +987,48 @@
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
       "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "weekly_kpi_17827",
+      "version": "1.0.0",
+      "name": "Weekly KPI HTML report",
+      "summary": "Email a KPI summary with deterministic totals and an AI executive summary.",
+      "description": "Email a KPI summary with deterministic totals and an AI executive summary. Adapted from https://n8n.io/workflows/17827/. Offline executor qualification: 28 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "categories": [
+        "data"
+      ],
+      "tags": [
+        "17827",
+        "migration"
+      ],
+      "integrations": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "schedule"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "llm",
+          "label": "An AI model provider",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/data/weekly_kpi_17827.yaml",
+      "workflow_yaml_bytes": 17648,
+      "workflow_yaml_sha256": "addf277e81971ba8ffd39aa33f060e2c07ded9613c9969b61868d9908b20efb1",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-03T19:31:59Z",
+      "updated_at": "2026-11-03T19:31:59Z"
     }
   ],
   "integration_labels": {
