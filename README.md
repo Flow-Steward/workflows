@@ -52,6 +52,12 @@ The category is your choice; reviewers only check that it is one of the list.
 
 ### Updating a published workflow
 
+To withdraw an unsuitable template, add its `item_id` and a concrete `reason`
+to `withdrawn.json` (`schema_version: workflow_withdrawals/v1`). The generated
+index omits the listing; the exported YAML and its pinned URL stay unchanged.
+After repair and verification, add a new version and remove its withdrawal
+record in the same reviewed change. Never edit or delete the published export.
+
 Published files never change, because every catalog entry pins its file's exact
 bytes. Raise `version` in Flow Steward, export again and add the new file next to
 the old one, for example `workflows/email/mailbox_search_1_1_0.yaml`. The catalog

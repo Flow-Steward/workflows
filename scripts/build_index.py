@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = "workflows"
 CATEGORIES_FILE = "categories.json"
 INDEX_FILE = "index.json"
+WITHDRAWALS_FILE = "withdrawn.json"
 
 SCHEMA_VERSION = "workflow_template_catalog/v1"
 # The final workflow format: root steps, groups, For each containers and one
@@ -577,6 +578,33 @@ def workflow_files() -> list[str]:
     )
 
 
+def withdrawn_items(known_ids: set[str]) -> set[str]:
+    """Withdraw active listings without changing immutable published artifacts."""
+    path = ROOT / WITHDRAWALS_FILE
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        raise CatalogError(f"{WITHDRAWALS_FILE}: cannot read withdrawal records") from exc
+    if not isinstance(data, dict) or data.get("schema_version") != "workflow_withdrawals/v1":
+        raise CatalogError(f"{WITHDRAWALS_FILE}: expected workflow_withdrawals/v1")
+    rows = data.get("items")
+    if not isinstance(rows, list):
+        raise CatalogError(f"{WITHDRAWALS_FILE}: items must be an array")
+    withdrawn: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise CatalogError(f"{WITHDRAWALS_FILE}: each record must be an object")
+        item_id = _text(row.get("item_id"))
+        if item_id not in known_ids or item_id in withdrawn:
+            raise CatalogError(f"{WITHDRAWALS_FILE}: unknown or repeated item_id '{item_id}'")
+        if not _text(row.get("reason")):
+            raise CatalogError(f"{WITHDRAWALS_FILE}: '{item_id}' needs a withdrawal reason")
+        withdrawn.add(item_id)
+    return withdrawn
+
+
 def build_index(*, repository: str | None = None) -> dict[str, Any]:
     category_labels = load_category_labels()
     categories = set(category_labels)
@@ -615,7 +643,14 @@ def build_index(*, repository: str | None = None) -> dict[str, Any]:
     if problems:
         raise CatalogError("\n".join(problems))
 
-    chosen = sorted(latest.values(), key=lambda e: (e.item["name"].lower(), e.item["item_id"]))
+    withdrawn = withdrawn_items(set(latest))
+    if (ROOT / WITHDRAWALS_FILE).exists():
+        _, withdrawn_at = _last_commit(WITHDRAWALS_FILE)
+        newest = max(newest, withdrawn_at)
+    chosen = sorted(
+        (entry for item_id, entry in latest.items() if item_id not in withdrawn),
+        key=lambda e: (e.item["name"].lower(), e.item["item_id"]),
+    )
     if len(chosen) > MAX_ITEMS:
         raise CatalogError(f"the catalog would carry {len(chosen)} items; the ceiling is {MAX_ITEMS}")
     labels: dict[str, str] = {}

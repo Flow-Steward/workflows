@@ -6,6 +6,7 @@ on:
     paths:
       - "workflows/**"
       - "categories.json"
+      - "withdrawn.json"
       - "scripts/build_index.py"
   workflow_dispatch:
 

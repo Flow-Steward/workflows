@@ -567,3 +567,38 @@ def test_an_extension_agent_is_provided_by_the_extension_the_file_depends_on():
     bundle["dependencies"]["extensions"] = []
     with pytest.raises(builder.CatalogError, match="extension.inst-1.summarizer"):
         _derive(bundle)
+
+
+def test_withdrawal_removes_listing_and_preserves_the_pinned_export(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    rel = "workflows/email/mailbox_search.yaml"
+    _commit(repo, rel, _bundle())
+    published = (repo / rel).read_bytes()
+    (repo / builder.WITHDRAWALS_FILE).write_text(json.dumps({
+        "schema_version": "workflow_withdrawals/v1",
+        "items": [{"item_id": "mailbox_search", "reason": "Provider authorization incomplete."}],
+    }))
+
+    index = builder.build_index(repository="acme/catalog")
+
+    assert index["items"] == []
+    assert (repo / rel).read_bytes() == published
+    assert builder.published_file_changes("HEAD") == []
+
+
+@pytest.mark.parametrize("rows", [
+    [{"item_id": "misspelled_workflow", "reason": "Incomplete."}],
+    [{"item_id": "mailbox_search", "reason": ""}],
+    [
+        {"item_id": "mailbox_search", "reason": "Incomplete."},
+        {"item_id": "mailbox_search", "reason": "Repeated."},
+    ],
+])
+def test_invalid_withdrawals_do_not_silently_publish(tmp_path, monkeypatch, rows):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/mailbox_search.yaml", _bundle())
+    (repo / builder.WITHDRAWALS_FILE).write_text(json.dumps({
+        "schema_version": "workflow_withdrawals/v1", "items": rows,
+    }))
+    with pytest.raises(builder.CatalogError, match="withdrawn.json"):
+        builder.build_index(repository="acme/catalog")

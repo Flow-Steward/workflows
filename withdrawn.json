@@ -1,0 +1,21 @@
+{
+  "schema_version": "workflow_withdrawals/v1",
+  "items": [
+    {
+      "item_id": "n8n_2454_categorize_outlook",
+      "reason": "Premature publication: Microsoft Graph access-token input does not implement or verify the OAuth consent, authorization-code exchange and refresh-token lifecycle. Import and synthetic validation are not evidence of an operational Outlook integration."
+    },
+    {
+      "item_id": "catalog_search_serpapi",
+      "reason": "Premature publication: import and static validation only; actual HTTP executor behavior and provider integration have not been verified. Preserve the export as an unverified draft."
+    },
+    {
+      "item_id": "catalog_search_tavily",
+      "reason": "Premature publication: import and static validation only; actual HTTP executor behavior and provider integration have not been verified. Preserve the export as an unverified draft."
+    },
+    {
+      "item_id": "catalog_search_exa",
+      "reason": "Premature publication: import and static validation only; actual HTTP executor behavior and provider integration have not been verified. Preserve the export as an unverified draft."
+    }
+  ]
+}
