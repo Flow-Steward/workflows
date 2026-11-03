@@ -1,0 +1,475 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-03T19:27:57+00:00'
+  exported_by: admin
+  source_workflow_id: security_daily_20438
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: security_daily_20438
+  version: 0.1.0
+  display_name: Daily security incident digest
+  description: 'Email a daily digest of security incidents from the incident log.
+    Adapted from https://n8n.io/workflows/20438/. Offline executor qualification:
+    20 source scenarios passed with synthetic provider/model replies; no live API
+    or import verification. Disabled on import. Configure released Google Workspace
+    0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads
+    are limited to 100 rows per table; use dedicated contiguous plain-value tables
+    and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted
+    current-time inputs require separate setup; only callable workflow structure is
+    included. Select the model, validate setup and enable any included agents, skills
+    and child workflows before enabling the main workflow.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: false
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+      expected_inputs:
+      - name: setup_ready
+        type: boolean
+        required: false
+      - name: spreadsheet_id
+        type: text
+        required: false
+      - name: google_connection
+        type: text
+        required: false
+      - name: smtp_connection
+        type: text
+        required: false
+      - name: supervisor_email
+        type: text
+        required: false
+      - name: client_email
+        type: text
+        required: false
+      - name: run_timestamp
+        type: text
+        required: false
+      - name: report_id
+        type: text
+        required: false
+      - name: window_start
+        type: text
+        required: false
+  participants: []
+  tags:
+  - migration
+  - security-patrol
+  steps:
+  - step_id: setup
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if ready|default(false) and sheet|default('''') and google|default('''')
+          and smtp|default('''') and supervisor|default('''') and client|default('''')
+          and rid|default('''') and clock|default('''') else ''no'' }}'
+        format: text
+        inputs:
+        - name: ready
+          type: boolean
+          required: false
+          source: state.inputs.setup_ready
+        - name: sheet
+          type: text
+          required: false
+          source: state.inputs.spreadsheet_id
+        - name: google
+          type: text
+          required: false
+          source: state.inputs.google_connection
+        - name: smtp
+          type: text
+          required: false
+          source: state.inputs.smtp_connection
+        - name: supervisor
+          type: text
+          required: false
+          source: state.inputs.supervisor_email
+        - name: client
+          type: text
+          required: false
+          source: state.inputs.client_email
+        - name: rid
+          type: text
+          required: false
+          source: state.inputs.report_id
+        - name: clock
+          type: text
+          required: false
+          source: state.inputs.run_timestamp
+        result_target: state.setup_ok
+  - step_id: setup_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.setup_ok
+          operator: equals
+          value: 'yes'
+  - step_id: read_config
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.sheet_title: Security Log
+  - step_id: read
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.google_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: state.sheet_title
+    output_mapping_jsonb:
+      result.preview: state.log_rows
+      result.row_count: state.log_count
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: coverage
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if count <= 100 and rows|length == count and start|default('''')
+          and finish|default('''') and start < finish else ''no'' }}'
+        format: text
+        inputs:
+        - name: count
+          type: number
+          required: false
+          source: state.log_count
+        - name: rows
+          type: array
+          required: false
+          source: state.log_rows
+        - name: start
+          type: text
+          required: false
+          source: state.inputs.window_start
+        - name: finish
+          type: text
+          required: false
+          source: state.inputs.run_timestamp
+        result_target: state.coverage_ok
+  - step_id: coverage_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.coverage_ok
+          operator: equals
+          value: 'yes'
+  - step_id: digest
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{% set fresh = rows|selectattr(''reported_at'',''ge'',start)|selectattr(''reported_at'',''le'',finish)|selectattr(''report_id'')|list
+          %}{% if fresh %}Daily activity report - {{ finish[:10] }}{% if fresh|selectattr(''is_urgent'',''equalto'',''yes'')|list
+          %} (INCLUDES URGENT ITEM){% endif %}
+
+          {% for r in fresh|sort(attribute=''reported_at'') %}- {{ r.reported_at }}
+          | {{ r.site }} | {{ r.officer_name }} | {{ r.report_type }} | {{ r.severity
+          }} | {{ r.summary }}
+
+          {% endfor %}End of report.{% endif %}'
+        format: text
+        inputs:
+        - name: rows
+          type: array
+          required: false
+          source: state.log_rows
+        - name: start
+          type: text
+          required: false
+          source: state.inputs.window_start
+        - name: finish
+          type: text
+          required: false
+          source: state.inputs.run_timestamp
+        result_target: state.digest
+  - step_id: empty_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.digest
+          operator: equals
+          value: ''
+  - step_id: digest_subject
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: Daily activity report - {{ finish[:10] }}
+        format: text
+        inputs:
+        - name: finish
+          type: text
+          required: false
+          source: state.inputs.run_timestamp
+        result_target: state.digest_subject
+  - step_id: digest_mail
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection
+      to: state.inputs.supervisor_email
+      subject: state.digest_subject
+      body_text: state.digest
+    output_mapping_jsonb:
+      delivered: state.digest_mail_delivered
+      provider_message_id: state.digest_mail_message_id
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: Completed
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Setup, data contract or provider failed; inspect effects before retry
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: setup
+    edges:
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: setup_guard
+      rework: false
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: read_config
+      rework: false
+    - source:
+        kind: step
+        id: read_config
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: read
+      rework: false
+    - source:
+        kind: step
+        id: read
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: coverage
+      rework: false
+    - source:
+        kind: step
+        id: coverage
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: coverage_guard
+      rework: false
+    - source:
+        kind: step
+        id: coverage_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: coverage_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: digest
+      rework: false
+    - source:
+        kind: step
+        id: digest
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: empty_guard
+      rework: false
+    - source:
+        kind: step
+        id: empty_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: empty_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: digest_subject
+      rework: false
+    - source:
+        kind: step
+        id: digest_subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: digest_mail
+      rework: false
+    - source:
+        kind: step
+        id: digest_mail
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: read_config
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: read
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: coverage
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: digest
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: digest_subject
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: digest_mail
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.google-workspace
+    display_name: flowsteward.google-workspace
+    required: true
+    sources:
+    - read.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.google-workspace
+      reason: connector_install_id_missing
+  - install_id: flowsteward.outgoing-email
+    display_name: flowsteward.outgoing-email
+    required: true
+    sources:
+    - digest_mail.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.outgoing-email
+      reason: connector_install_id_missing
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

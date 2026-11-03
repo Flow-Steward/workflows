@@ -1,0 +1,1264 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-03T19:27:57+00:00'
+  exported_by: admin
+  source_workflow_id: seller_weekly_reports_20542
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: seller_weekly_reports_20542
+  version: 1.0.0
+  display_name: Seller weekly property reports (20542)
+  description: 'Email sellers a weekly property report from listings, leads and viewings.
+    Adapted from https://n8n.io/workflows/20542/. Offline executor qualification:
+    10 source scenarios passed with synthetic provider/model replies; no live API
+    or import verification. Disabled on import. Configure released Google Workspace
+    0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to
+    100 rows per table; use dedicated contiguous plain-value tables and one writer.
+    SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs
+    require separate setup; only callable workflow structure is included. Select the
+    model, validate setup and enable any included agents, skills and child workflows
+    before enabling the main workflow.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      trigger_channels:
+      - ui
+      - parent_workflow
+      expected_inputs:
+      - name: spreadsheet_id
+        type: text
+        required: true
+      - name: sheets_connection
+        type: text
+        required: true
+      - name: smtp_connection
+        type: text
+        required: true
+      - name: report_now
+        type: text
+        required: true
+      - name: agency_name
+        type: text
+        required: true
+      - name: agent_name
+        type: text
+        required: true
+      - name: agent_email
+        type: text
+        required: true
+      - name: currency_symbol
+        type: text
+        required: true
+      expected_outputs: []
+  participants: []
+  tags:
+  - migration
+  - '20542'
+  steps:
+  - step_id: setup_render
+    step_kind: template
+    override:
+      template:
+        text: '{{ cfg.spreadsheet_id and cfg.sheets_connection and cfg.smtp_connection
+          and cfg.report_now|length == 20 and cfg.report_now[-1:] == ''Z'' }}'
+        format: text
+        inputs:
+        - name: cfg
+          type: object
+          source: state.inputs
+          required: true
+        result_target: state.guard_value
+  - step_id: setup
+    step_kind: if
+    override:
+      if:
+        condition: state.guard_value == 'True'
+  - step_id: clock
+    step_kind: transform
+    override:
+      transform:
+        input:
+          source: state.inputs
+        mode: object
+        fields:
+        - from: report_now
+          to: now
+          type: text
+          actions:
+          - action: date.to_utc
+            params: {}
+        - from: report_now
+          to: since
+          type: text
+          actions:
+          - action: date.add
+            params:
+              amount: -7
+              unit: days
+          - action: date.to_utc
+            params: {}
+        - from: report_now
+          to: stale
+          type: text
+          actions:
+          - action: date.add
+            params:
+              amount: -45
+              unit: days
+          - action: date.to_utc
+            params: {}
+        - from: report_now
+          to: from_label
+          type: text
+          actions:
+          - action: date.add
+            params:
+              amount: -7
+              unit: days
+          - action: date.format
+            params:
+              output_format: D MMM
+              locale: en
+        - from: report_now
+          to: to_label
+          type: text
+          actions:
+          - action: date.format
+            params:
+              output_format: D MMM YYYY
+              locale: en
+        output_mode: mapped_only
+        result_target: state.clock
+  - step_id: read_listings
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.sheets_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: Listings20542
+      header_mode: first_row
+    output_mapping_jsonb:
+      result: state.listing_data
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: read_leads
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.sheets_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: Leads20542
+      header_mode: first_row
+    output_mapping_jsonb:
+      result: state.lead_data
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: read_viewings
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.sheets_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: Viewings20542
+      header_mode: first_row
+    output_mapping_jsonb:
+      result: state.viewing_data
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: coverage_render
+    step_kind: template
+    override:
+      template:
+        text: '{{ ( l.row_count <= 100 and l.preview|length == l.row_count and l.column_count
+          == 14 and l.schema|map(attribute="name")|list == [''Listing Ref'', ''Address'',
+          ''City'', ''Price'', ''Bedrooms'', ''Property Type'', ''Listing Type'',
+          ''Status'', ''Listed At'', ''Listing URL'', ''Seller Name'', ''Seller Email'',
+          ''Alert Sent At'', ''Last Report Sent At''] and (l.preview|tojson|length)
+          <= 65000 ) and ( p.row_count <= 100 and p.preview|length == p.row_count
+          and p.column_count == 21 and p.schema|map(attribute="name")|list == [''Lead
+          ID'', ''Last Enquiry At'', ''Name'', ''Email'', ''Phone'', ''Intent'', ''Property
+          Ref'', ''Budget'', ''Timeline'', ''Preferred Areas'', ''Min Bedrooms'',
+          ''Property Type'', ''Message'', ''Source'', ''Score'', ''Temperature'',
+          ''Status'', ''Follow-up Step'', ''Last Contact At'', ''Next Follow-up At'',
+          ''Notes''] and (p.preview|tojson|length) <= 65000 ) and ( v.row_count <=
+          100 and v.preview|length == v.row_count and v.column_count == 13 and v.schema|map(attribute="name")|list
+          == [''Viewing ID'', ''Listing Ref'', ''Buyer Name'', ''Buyer Email'', ''Buyer
+          Phone'', ''Start'', ''End'', ''Status'', ''Calendar Event ID'', ''Reminder
+          Sent At'', ''Feedback Rating'', ''Feedback Comment'', ''Created At''] and
+          (v.preview|tojson|length) <= 65000 ) and (true) }}'
+        format: text
+        inputs:
+        - name: l
+          type: object
+          source: state.listing_data
+          required: true
+        - name: p
+          type: object
+          source: state.lead_data
+          required: true
+        - name: v
+          type: object
+          source: state.viewing_data
+          required: true
+        result_target: state.guard_value
+  - step_id: coverage
+    step_kind: if
+    override:
+      if:
+        condition: state.guard_value == 'True'
+  - step_id: temporal_render
+    step_kind: template
+    override:
+      template:
+        text: '{% set n=namespace(ok=true) %}{% for r in l %}{% if r[''Listed At'']
+          is not string or r[''Listed At'']|length != 20 or r[''Listed At''][-1:]
+          != ''Z'' %}{% set n.ok=false %}{% endif %}{% endfor %}{% for r in p %}{%
+          if r[''Last Enquiry At''] is not string or r[''Last Enquiry At'']|length
+          != 20 or r[''Last Enquiry At''][-1:] != ''Z'' %}{% set n.ok=false %}{% endif
+          %}{% endfor %}{% for r in v %}{% if r[''Start''] is not string or r[''Start'']|length
+          != 20 or r[''Start''][-1:] != ''Z'' %}{% set n.ok=false %}{% endif %}{%
+          endfor %}{{ n.ok }}'
+        format: text
+        inputs:
+        - name: l
+          type: array
+          source: state.listing_data.preview
+          required: true
+        - name: p
+          type: array
+          source: state.lead_data.preview
+          required: true
+        - name: v
+          type: array
+          source: state.viewing_data.preview
+          required: true
+        result_target: state.temporal_ok
+  - step_id: temporal
+    step_kind: if
+    override:
+      if:
+        condition: state.temporal_ok == 'True'
+  - step_id: normalize_leads
+    step_kind: transform
+    override:
+      transform:
+        input:
+          source: state.lead_data.preview
+        mode: list
+        fields:
+        - from: '["Last Enquiry At"]'
+          to: enquired
+          type: text
+          actions:
+          - action: date.to_utc
+            params: {}
+        output_mode: merge_with_input
+        result_target: state.leads
+  - step_id: normalize_viewings
+    step_kind: transform
+    override:
+      transform:
+        input:
+          source: state.viewing_data.preview
+        mode: list
+        fields:
+        - from: '["Start"]'
+          to: started
+          type: text
+          actions:
+          - action: date.to_utc
+            params: {}
+        output_mode: merge_with_input
+        result_target: state.viewings
+  - step_id: initialize
+    step_kind: set_variable
+    override:
+      set_variable:
+        assignments:
+          state.listings: []
+          state.seen: {}
+          state.reported_refs: {}
+          state.write_rows: []
+  - step_id: date_wrapper
+    step_kind: set_variable
+    for_each_id: listing_dates
+    override:
+      set_variable:
+        assignments:
+          state.date_item: {}
+          state.date_item.row:
+            source: state.listing
+          state.date_item.now:
+            source: state.clock.now
+  - step_id: listing_day_count
+    step_kind: transform
+    for_each_id: listing_dates
+    override:
+      transform:
+        input:
+          source: state.date_item
+        mode: object
+        fields:
+        - from: row
+          to: row
+          type: object
+        - from: row["Listed At"]
+          to: days
+          type: number
+          actions:
+          - action: date.diff
+            params:
+              from:
+                selector: now
+              unit: days
+              timezone: UTC
+          - action: number.multiply
+            params:
+              factor: -1
+          - action: number.floor
+            params: {}
+        output_mode: mapped_only
+        result_target: state.enriched
+  - step_id: keep_listing
+    step_kind: collect
+    for_each_id: listing_dates
+    override:
+      collect:
+        target: state.listings
+        source: state.enriched
+  - step_id: seller_key
+    step_kind: template
+    for_each_id: seller_reports
+    override:
+      template:
+        text: '{{ current.row["Seller Email"]|default("",true)|trim|lower }}'
+        format: text
+        inputs:
+        - name: current
+          type: object
+          source: state.current
+          required: true
+        result_target: state.seller
+  - step_id: eligible_render
+    step_kind: template
+    for_each_id: seller_reports
+    override:
+      template:
+        text: '{% set l=current.row %}{% set e=l[''Seller Email'']|default('''',true)|trim|lower
+          %}{{ l[''Listing Ref''] and l[''Status'']|default('''',true)|lower in [''available'',''under
+          offer''] and e.count(''@'') == 1 and e.split(''@'')[0] and e.split()|join('''')
+          == e and ''.'' in e.split(''@'')[-1] and e.split(''@'')[-1].rsplit(''.'',1)[0]
+          and e.split(''@'')[-1].rsplit(''.'',1)[-1]|length >= 2 and e not in seen
+          }}'
+        format: text
+        inputs:
+        - name: current
+          type: object
+          source: state.current
+          required: true
+        - name: seen
+          type: object
+          source: state.seen
+          required: true
+        result_target: state.eligible
+  - step_id: eligible
+    step_kind: if
+    for_each_id: seller_reports
+    override:
+      if:
+        condition: state.eligible == 'True'
+  - step_id: compose_report
+    step_kind: template
+    for_each_id: seller_reports
+    override:
+      template:
+        text: '{% set n=namespace(properties=0) %}{% for x in listings %}{% if x.row[''Seller
+          Email'']|default('''',true)|trim|lower == seller and x.row[''Listing Ref'']
+          and x.row[''Status'']|default('''',true)|lower in [''available'',''under
+          offer''] %}{% set n.properties=n.properties+1 %}{% endif %}{% endfor %}
+
+          <p>Hi {{ ((current.row[''Seller Name'']|default('''',true)|trim).split(''
+          '')[0]) or ''there'' }},</p><p>Here is what happened on your {{ ''properties''
+          if n.properties > 1 else ''property'' }} over the last 7 days.</p>
+
+          {% for x in listings %}{% set l=x.row %}{% if l[''Seller Email'']|default('''',true)|trim|lower
+          == seller and l[''Listing Ref''] and l[''Status'']|default('''',true)|lower
+          in [''available'',''under offer''] %}
+
+          {% set s=namespace(ew=0,et=0,vw=0,vt=0,upcoming=0,rating=0,rated=0,comments=[])
+          %}
+
+          {% for p in leads %}{% if p[''Property Ref'']|string == l[''Listing Ref'']|string
+          %}{% set s.et=s.et+1 %}{% if clock.since <= p.enquired <= clock.now %}{%
+          set s.ew=s.ew+1 %}{% endif %}{% endif %}{% endfor %}
+
+          {% for v in viewings %}{% if v[''Listing Ref'']|string == l[''Listing Ref'']|string
+          and v[''Status'']|default('''',true)|trim|lower != ''cancelled'' %}{% if
+          v.started <= clock.now %}{% set s.vt=s.vt+1 %}{% if v[''Feedback Rating'']|float
+          > 0 %}{% set s.rating=s.rating + v[''Feedback Rating'']|float %}{% set s.rated=s.rated+1
+          %}{% endif %}{% if clock.since <= v.started %}{% set s.vw=s.vw+1 %}{% if
+          v[''Feedback Comment''] %}{% set s.comments=s.comments+[v[''Feedback Comment'']]
+          %}{% endif %}{% endif %}{% else %}{% set s.upcoming=s.upcoming+1 %}{% endif
+          %}{% endif %}{% endfor %}
+
+          <h3>{{ l[''Address''] }}, {{ l[''City''] }}</h3><p>Ref {{ l[''Listing Ref'']
+          }} · {{ currency }}{{ ''{:,.0f}''.format(l[''Price'']|replace('','','''')|replace(''$'','''')|float)
+          }} · {{ l[''Status''] }} · {{ [0,x.days]|max }} days on the market</p>
+
+          <table><tr><td>New enquiries (this week / total)</td><td><b>{{ s.ew }}</b>
+          / {{ s.et }}</td></tr><tr><td>Viewings (this week / total)</td><td><b>{{
+          s.vw }}</b> / {{ s.vt }}</td></tr><tr><td>Upcoming viewings</td><td><b>{{
+          s.upcoming }}</b></td></tr><tr><td>Average viewer rating</td><td><b>{% if
+          s.rated %}{{ ''%.1f''|format(s.rating/s.rated) }} / 5{% else %}—{% endif
+          %}</b></td></tr></table>
+
+          {% if s.comments %}<p><i>What viewers said:</i></p><ul>{% for c in s.comments
+          %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}<p>💡 {% if s.ew >= 3 and s.vw
+          == 0 %}Plenty of interest this week but no viewings yet — we are following
+          up with every enquirer to book visits.{% elif s.vt >= 5 and s.rated and
+          s.rating/s.rated < 3 %}Viewer feedback is mixed. It may be worth reviewing
+          presentation or price together.{% elif x.days > 45 and s.ew == 0 %}Activity
+          has slowed down. A price review or refreshed photos could relaunch interest.{%
+          elif s.upcoming == 1 %}1 viewing already booked for the coming days.{% elif
+          s.upcoming > 1 %}{{ s.upcoming }} viewings already booked for the coming
+          days.{% else %}Steady activity — no change recommended this week.{% endif
+          %}</p>
+
+          {% endif %}{% endfor %}<p>Any questions? Just reply to this email.</p><p>Best
+          regards,<br>{{ agent }}<br>{{ agency }}</p>'
+        format: html
+        inputs:
+        - name: current
+          type: object
+          source: state.current
+          required: true
+        - name: listings
+          type: array
+          source: state.listings
+          required: true
+        - name: leads
+          type: array
+          source: state.leads
+          required: true
+        - name: viewings
+          type: array
+          source: state.viewings
+          required: true
+        - name: seller
+          type: text
+          source: state.seller
+          required: true
+        - name: clock
+          type: object
+          source: state.clock
+          required: true
+        - name: currency
+          type: text
+          source: state.inputs.currency_symbol
+          required: true
+        - name: agent
+          type: text
+          source: state.inputs.agent_name
+          required: true
+        - name: agency
+          type: text
+          source: state.inputs.agency_name
+          required: true
+        result_target: state.html
+  - step_id: compose_subject
+    step_kind: template
+    for_each_id: seller_reports
+    override:
+      template:
+        text: Your weekly property report — {{ clock.from_label }} to {{ clock.to_label
+          }}
+        format: text
+        inputs:
+        - name: clock
+          type: object
+          source: state.clock
+          required: true
+        result_target: state.subject
+  - step_id: send_report
+    step_kind: connector
+    for_each_id: seller_reports
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection
+      to: state.seller
+      bcc: state.inputs.agent_email
+      subject: state.subject
+      body_html: state.html
+    output_mapping_jsonb:
+      delivered: state.delivered
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: accepted
+    step_kind: if
+    for_each_id: seller_reports
+    override:
+      if:
+        condition: state.delivered == true
+  - step_id: remember_seller
+    step_kind: collect
+    for_each_id: seller_reports
+    override:
+      collect:
+        target: state.seen
+        source: state.delivered
+        mode: set_key
+        key:
+          source: state.seller
+  - step_id: any_sent_render
+    step_kind: template
+    override:
+      template:
+        text: '{{ seen|length > 0 }}'
+        format: text
+        inputs:
+        - name: seen
+          type: object
+          source: state.seen
+          required: true
+        result_target: state.any_sent
+  - step_id: any_sent
+    step_kind: if
+    override:
+      if:
+        condition: state.any_sent == 'True'
+  - step_id: reread_listings
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.sheets_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: Listings20542
+      header_mode: first_row
+    output_mapping_jsonb:
+      result: state.fresh
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: rewrite_coverage_render
+    step_kind: template
+    override:
+      template:
+        text: '{{ ( f.row_count <= 100 and f.preview|length == f.row_count and f.column_count
+          == 14 and f.schema|map(attribute="name")|list == [''Listing Ref'', ''Address'',
+          ''City'', ''Price'', ''Bedrooms'', ''Property Type'', ''Listing Type'',
+          ''Status'', ''Listed At'', ''Listing URL'', ''Seller Name'', ''Seller Email'',
+          ''Alert Sent At'', ''Last Report Sent At''] and (f.preview|tojson|length)
+          <= 65000 ) and (true) }}'
+        format: text
+        inputs:
+        - name: f
+          type: object
+          source: state.fresh
+          required: true
+        result_target: state.guard_value
+  - step_id: rewrite_coverage
+    step_kind: if
+    override:
+      if:
+        condition: state.guard_value == 'True'
+  - step_id: copy_row
+    step_kind: set_variable
+    for_each_id: rewrite_rows
+    override:
+      set_variable:
+        assignments:
+          state.updated_row:
+            source: state.fresh_row
+  - step_id: reported_render
+    step_kind: template
+    for_each_id: rewrite_rows
+    override:
+      template:
+        text: '{{ row[''Listing Ref''] and row[''Status'']|default('''',true)|lower
+          in [''available'',''under offer''] and row[''Seller Email'']|default('''',true)|trim|lower
+          in seen }}'
+        format: text
+        inputs:
+        - name: row
+          type: object
+          source: state.fresh_row
+          required: true
+        - name: seen
+          type: object
+          source: state.seen
+          required: true
+        result_target: state.reported
+  - step_id: reported
+    step_kind: if
+    for_each_id: rewrite_rows
+    override:
+      if:
+        condition: state.reported == 'True'
+  - step_id: set_report_date
+    step_kind: set_variable
+    for_each_id: rewrite_rows
+    override:
+      set_variable:
+        assignments:
+          state.updated_row.Last Report Sent At:
+            source: state.clock.now
+  - step_id: row_values
+    step_kind: transform
+    for_each_id: rewrite_rows
+    override:
+      transform:
+        input:
+          source: state.updated_row
+        mode: object
+        fields:
+        - from: '["Listing Ref"]'
+          to: c0
+          type: json
+          default: ''
+        - from: '["Address"]'
+          to: c1
+          type: json
+          default: ''
+        - from: '["City"]'
+          to: c2
+          type: json
+          default: ''
+        - from: '["Price"]'
+          to: c3
+          type: json
+          default: ''
+        - from: '["Bedrooms"]'
+          to: c4
+          type: json
+          default: ''
+        - from: '["Property Type"]'
+          to: c5
+          type: json
+          default: ''
+        - from: '["Listing Type"]'
+          to: c6
+          type: json
+          default: ''
+        - from: '["Status"]'
+          to: c7
+          type: json
+          default: ''
+        - from: '["Listed At"]'
+          to: c8
+          type: json
+          default: ''
+        - from: '["Listing URL"]'
+          to: c9
+          type: json
+          default: ''
+        - from: '["Seller Name"]'
+          to: c10
+          type: json
+          default: ''
+        - from: '["Seller Email"]'
+          to: c11
+          type: json
+          default: ''
+        - from: '["Alert Sent At"]'
+          to: c12
+          type: json
+          default: ''
+        - from: '["Last Report Sent At"]'
+          to: c13
+          type: json
+          default: ''
+        output_mode: mapped_only
+        result_target: state.ordered_row
+  - step_id: array_wrapper
+    step_kind: set_variable
+    for_each_id: rewrite_rows
+    override:
+      set_variable:
+        assignments:
+          state.array_wrapper: {}
+          state.array_wrapper.row:
+            source: state.ordered_row
+  - step_id: array_values
+    step_kind: transform
+    for_each_id: rewrite_rows
+    override:
+      transform:
+        input:
+          source: state.array_wrapper
+        mode: object
+        fields:
+        - from: row
+          to: values
+          type: array
+          actions:
+          - action: json.values
+            params: {}
+        output_mode: mapped_only
+        result_target: state.row_array
+  - step_id: collect_row
+    step_kind: collect
+    for_each_id: rewrite_rows
+    override:
+      collect:
+        target: state.write_rows
+        source: state.row_array.values
+  - step_id: save_dates
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.sheets_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: Listings20542
+      mode: overwrite
+      start_cell: A2
+      inline_rows: state.write_rows
+    output_mapping_jsonb:
+      result.row_count: state.saved_count
+    override:
+      connector:
+        operation_id: write_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: Seller reports complete
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Incomplete, oversized or unsupported sheet schema
+  groups: []
+  for_each:
+  - for_each_id: listing_dates
+    group_id: null
+    display_name: listing_dates
+    over: state.listing_data.preview
+    item_name: listing
+    index_name: listing_dates_index
+    body:
+      kind: sequence
+      entry:
+        kind: step
+        id: date_wrapper
+  - for_each_id: seller_reports
+    group_id: null
+    display_name: seller_reports
+    over: state.listings
+    item_name: current
+    index_name: seller_reports_index
+    body:
+      kind: sequence
+      entry:
+        kind: step
+        id: seller_key
+  - for_each_id: rewrite_rows
+    group_id: null
+    display_name: rewrite_rows
+    over: state.fresh.preview
+    item_name: fresh_row
+    index_name: rewrite_rows_index
+    body:
+      kind: sequence
+      entry:
+        kind: step
+        id: copy_row
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: setup_render
+    edges:
+    - source:
+        kind: step
+        id: setup_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: setup
+      rework: false
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: clock
+      rework: false
+    - source:
+        kind: step
+        id: clock
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: read_listings
+      rework: false
+    - source:
+        kind: step
+        id: read_listings
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: read_leads
+      rework: false
+    - source:
+        kind: step
+        id: read_leads
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: read_viewings
+      rework: false
+    - source:
+        kind: step
+        id: coverage_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: coverage
+      rework: false
+    - source:
+        kind: step
+        id: coverage
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: read_viewings
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: coverage_render
+      rework: false
+    - source:
+        kind: step
+        id: coverage
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: temporal_render
+      rework: false
+    - source:
+        kind: step
+        id: temporal_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: temporal
+      rework: false
+    - source:
+        kind: step
+        id: temporal
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: temporal
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: normalize_leads
+      rework: false
+    - source:
+        kind: step
+        id: normalize_leads
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_viewings
+      rework: false
+    - source:
+        kind: step
+        id: normalize_viewings
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: initialize
+      rework: false
+    - source:
+        kind: step
+        id: initialize
+      outcome:
+        name: success
+      target:
+        kind: for_each
+        id: listing_dates
+      rework: false
+    - source:
+        kind: step
+        id: date_wrapper
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: listing_day_count
+      rework: false
+    - source:
+        kind: step
+        id: listing_day_count
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: keep_listing
+      rework: false
+    - source:
+        kind: step
+        id: keep_listing
+      outcome:
+        name: success
+      target:
+        kind: for_each_exit
+        for_each_id: listing_dates
+        lane_id: null
+      rework: false
+    - source:
+        kind: for_each
+        id: listing_dates
+      outcome:
+        name: success
+      target:
+        kind: for_each
+        id: seller_reports
+      rework: false
+    - source:
+        kind: step
+        id: seller_key
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: eligible_render
+      rework: false
+    - source:
+        kind: step
+        id: eligible_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: eligible
+      rework: false
+    - source:
+        kind: step
+        id: eligible
+      outcome:
+        name: 'false'
+      target:
+        kind: for_each_exit
+        for_each_id: seller_reports
+        lane_id: null
+      rework: false
+    - source:
+        kind: step
+        id: eligible
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: compose_report
+      rework: false
+    - source:
+        kind: step
+        id: compose_report
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: compose_subject
+      rework: false
+    - source:
+        kind: step
+        id: compose_subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: send_report
+      rework: false
+    - source:
+        kind: step
+        id: send_report
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: accepted
+      rework: false
+    - source:
+        kind: step
+        id: accepted
+      outcome:
+        name: 'false'
+      target:
+        kind: for_each_exit
+        for_each_id: seller_reports
+        lane_id: null
+      rework: false
+    - source:
+        kind: step
+        id: accepted
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: remember_seller
+      rework: false
+    - source:
+        kind: step
+        id: remember_seller
+      outcome:
+        name: success
+      target:
+        kind: for_each_exit
+        for_each_id: seller_reports
+        lane_id: null
+      rework: false
+    - source:
+        kind: for_each
+        id: seller_reports
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: any_sent_render
+      rework: false
+    - source:
+        kind: step
+        id: any_sent_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: any_sent
+      rework: false
+    - source:
+        kind: step
+        id: any_sent
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: any_sent
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: reread_listings
+      rework: false
+    - source:
+        kind: step
+        id: rewrite_coverage_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: rewrite_coverage
+      rework: false
+    - source:
+        kind: step
+        id: rewrite_coverage
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: reread_listings
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: rewrite_coverage_render
+      rework: false
+    - source:
+        kind: step
+        id: rewrite_coverage
+      outcome:
+        name: 'true'
+      target:
+        kind: for_each
+        id: rewrite_rows
+      rework: false
+    - source:
+        kind: step
+        id: copy_row
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: reported_render
+      rework: false
+    - source:
+        kind: step
+        id: reported_render
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: reported
+      rework: false
+    - source:
+        kind: step
+        id: reported
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: row_values
+      rework: false
+    - source:
+        kind: step
+        id: reported
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: set_report_date
+      rework: false
+    - source:
+        kind: step
+        id: set_report_date
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: row_values
+      rework: false
+    - source:
+        kind: step
+        id: row_values
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: array_wrapper
+      rework: false
+    - source:
+        kind: step
+        id: array_wrapper
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: array_values
+      rework: false
+    - source:
+        kind: step
+        id: array_values
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: collect_row
+      rework: false
+    - source:
+        kind: step
+        id: collect_row
+      outcome:
+        name: success
+      target:
+        kind: for_each_exit
+        for_each_id: rewrite_rows
+        lane_id: null
+      rework: false
+    - source:
+        kind: for_each
+        id: rewrite_rows
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: save_dates
+      rework: false
+    - source:
+        kind: step
+        id: save_dates
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.google-workspace
+    display_name: flowsteward.google-workspace
+    required: true
+    sources:
+    - read_listings.connector_id
+    - read_leads.connector_id
+    - read_viewings.connector_id
+    - reread_listings.connector_id
+    - save_dates.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.google-workspace
+      reason: connector_install_id_missing
+  - install_id: flowsteward.outgoing-email
+    display_name: flowsteward.outgoing-email
+    required: true
+    sources:
+    - send_report.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.outgoing-email
+      reason: connector_install_id_missing
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

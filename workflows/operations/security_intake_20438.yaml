@@ -1,0 +1,1555 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-03T19:27:57+00:00'
+  exported_by: admin
+  source_workflow_id: security_intake_20438
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: security_intake_20438
+  version: 0.1.0
+  display_name: Security incident intake and escalation
+  description: 'Classify patrol incidents, log reports and escalate urgent incidents
+    by email. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification:
+    20 source scenarios passed with synthetic provider/model replies; no live API
+    or import verification. Disabled on import. Configure released Google Workspace
+    0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads
+    are limited to 100 rows per table; use dedicated contiguous plain-value tables
+    and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted
+    current-time inputs require separate setup; only callable workflow structure is
+    included. Select the model, validate setup and enable any included agents, skills
+    and child workflows before enabling the main workflow.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: false
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+      expected_inputs:
+      - name: setup_ready
+        type: boolean
+        required: false
+      - name: spreadsheet_id
+        type: text
+        required: false
+      - name: google_connection
+        type: text
+        required: false
+      - name: smtp_connection
+        type: text
+        required: false
+      - name: supervisor_email
+        type: text
+        required: false
+      - name: client_email
+        type: text
+        required: false
+      - name: run_timestamp
+        type: text
+        required: false
+      - name: report_id
+        type: text
+        required: false
+      - name: window_start
+        type: text
+        required: false
+      - name: form
+        type: object
+        required: false
+  participants: []
+  tags:
+  - migration
+  - security-patrol
+  steps:
+  - step_id: setup
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if ready|default(false) and sheet|default('''') and google|default('''')
+          and smtp|default('''') and supervisor|default('''') and client|default('''')
+          and rid|default('''') and clock|default('''') else ''no'' }}'
+        format: text
+        inputs:
+        - name: ready
+          type: boolean
+          required: false
+          source: state.inputs.setup_ready
+        - name: sheet
+          type: text
+          required: false
+          source: state.inputs.spreadsheet_id
+        - name: google
+          type: text
+          required: false
+          source: state.inputs.google_connection
+        - name: smtp
+          type: text
+          required: false
+          source: state.inputs.smtp_connection
+        - name: supervisor
+          type: text
+          required: false
+          source: state.inputs.supervisor_email
+        - name: client
+          type: text
+          required: false
+          source: state.inputs.client_email
+        - name: rid
+          type: text
+          required: false
+          source: state.inputs.report_id
+        - name: clock
+          type: text
+          required: false
+          source: state.inputs.run_timestamp
+        result_target: state.setup_ok
+  - step_id: setup_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.setup_ok
+          operator: equals
+          value: 'yes'
+  - step_id: normalize_officer_name
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.officer_name|default('''') or form[''Officer name'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.officer_name
+  - step_id: normalize_officer_email
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.officer_email|default('''') or form[''Officer email'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.officer_email
+  - step_id: normalize_site
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.site|default('''') or form[''Site or client'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.site
+  - step_id: normalize_shift
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.shift|default('''') or form[''Shift'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.shift
+  - step_id: normalize_report_type
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.report_type|default('''') or form[''Report type'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.report_type
+  - step_id: normalize_event_time
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.event_time|default('''') or form[''Time of event (24h)'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.event_time
+  - step_id: normalize_description
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ (form.description|default('''') or form[''What happened'']|default(''''))|trim
+          }}'
+        format: text
+        inputs:
+        - name: form
+          type: object
+          required: false
+          source: state.inputs.form
+        result_target: state.description
+  - step_id: validate
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if name and email and site and description else ''no'' }}'
+        format: text
+        inputs:
+        - name: name
+          type: text
+          required: false
+          source: state.officer_name
+        - name: email
+          type: text
+          required: false
+          source: state.officer_email
+        - name: site
+          type: text
+          required: false
+          source: state.site
+        - name: description
+          type: text
+          required: false
+          source: state.description
+        result_target: state.report_valid
+  - step_id: valid_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.report_valid
+          operator: equals
+          value: 'yes'
+  - step_id: rejection_body
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: 'Your patrol report was NOT saved because required details are missing.
+          Required: officer name, officer email, site or client, and what happened.
+          Fix the form and resubmit.'
+        format: text
+        inputs: []
+        result_target: state.rejection_body
+  - step_id: rejection_to
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ email or supervisor }}'
+        format: text
+        inputs:
+        - name: email
+          type: text
+          required: false
+          source: state.officer_email
+        - name: supervisor
+          type: text
+          required: false
+          source: state.inputs.supervisor_email
+        result_target: state.rejection_to
+  - step_id: rejection_subject
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.rejection_subject: 'Patrol report not saved: missing details'
+  - step_id: reject_mail
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection
+      to: state.rejection_to
+      subject: state.rejection_subject
+      body_text: state.rejection_body
+    output_mapping_jsonb:
+      delivered: state.reject_mail_delivered
+      provider_message_id: state.reject_mail_message_id
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: classify_defaults
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.suggested_action: ''
+  - step_id: classify_prompt
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: Report {{ rid }} | Officer {{ officer }} | Site {{ site }} | Shift {{
+          shift }} | Type {{ report_type }} | Event time {{ event_time }} | Description
+          {{ description }}
+        format: text
+        inputs:
+        - name: rid
+          type: text
+          required: false
+          source: state.inputs.report_id
+        - name: officer
+          type: text
+          required: false
+          source: state.officer_name
+        - name: site
+          type: text
+          required: false
+          source: state.site
+        - name: shift
+          type: text
+          required: false
+          source: state.shift
+        - name: report_type
+          type: text
+          required: false
+          source: state.report_type
+        - name: event_time
+          type: text
+          required: false
+          source: state.event_time
+        - name: description
+          type: text
+          required: false
+          source: state.description
+        result_target: state.classify_prompt
+  - step_id: classify
+    step_kind: agent
+    agent_id: security_classifier
+    skill_id: security_classify
+    input_mapping_jsonb:
+      report_details: state.classify_prompt
+    output_mapping_jsonb:
+      severity: state.severity
+      summary: state.summary
+      suggested_action: state.suggested_action
+    error_policy:
+      on_error: route_to_step
+  - step_id: classify_check
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if severity in [''urgent'',''normal'',''informational'']
+          and summary is string and summary|trim and action is string else ''no''
+          }}'
+        format: text
+        inputs:
+        - name: severity
+          type: json
+          required: false
+          source: state.severity
+        - name: summary
+          type: json
+          required: false
+          source: state.summary
+        - name: action
+          type: json
+          required: false
+          source: state.suggested_action
+        result_target: state.classify_ok
+  - step_id: classify_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.classify_ok
+          operator: equals
+          value: 'yes'
+  - step_id: urgent_value
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: '{{ ''yes'' if severity == ''urgent'' else ''no'' }}'
+        format: text
+        inputs:
+        - name: severity
+          type: text
+          required: false
+          source: state.severity
+        result_target: state.is_urgent
+  - step_id: row_init
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.row: {}
+  - step_id: row_fields
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.row.cells.report_id:
+            source: state.inputs.report_id
+          state.row.cells.reported_at:
+            source: state.inputs.run_timestamp
+          state.row.cells.officer_name:
+            source: state.officer_name
+          state.row.cells.officer_email:
+            source: state.officer_email
+          state.row.cells.site:
+            source: state.site
+          state.row.cells.shift:
+            source: state.shift
+          state.row.cells.report_type:
+            source: state.report_type
+          state.row.cells.event_time:
+            source: state.event_time
+          state.row.cells.description:
+            source: state.description
+          state.row.cells.severity:
+            source: state.severity
+          state.row.cells.is_urgent:
+            source: state.is_urgent
+          state.row.cells.summary:
+            source: state.summary
+          state.row.cells.suggested_action:
+            source: state.suggested_action
+          state.row.cells.supervisor_email:
+            source: state.inputs.supervisor_email
+          state.row.cells.client_email:
+            source: state.inputs.client_email
+  - step_id: row_array
+    step_kind: transform
+    error_policy:
+      on_error: route_to_step
+    override:
+      transform:
+        input:
+          source: state.row
+        mode: object
+        result_target: state.row_array
+        fields:
+        - from: cells
+          to: values
+          type: array
+          actions:
+          - action: json.values
+  - step_id: matrix_init
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.matrix: {}
+  - step_id: matrix_row
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.matrix.cells.row:
+            source: state.row_array.values
+  - step_id: matrix_array
+    step_kind: transform
+    error_policy:
+      on_error: route_to_step
+    override:
+      transform:
+        input:
+          source: state.matrix
+        mode: object
+        result_target: state.matrix_array
+        fields:
+        - from: cells
+          to: values
+          type: array
+          actions:
+          - action: json.values
+  - step_id: append_range
+    step_kind: set_variable
+    error_policy:
+      on_error: route_to_step
+    override:
+      set_variable:
+        assignments:
+          state.table_range: A:O
+          state.sheet_title: Security Log
+  - step_id: append
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.google_connection
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: state.sheet_title
+      table_range: state.table_range
+      inline_rows: state.matrix_array.values
+    output_mapping_jsonb:
+      result.row_count: state.appended_count
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: append_google_sheet_rows
+        extension_id: flowsteward.google-workspace
+  - step_id: append_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.appended_count
+          operator: equals
+          value: 1
+  - step_id: urgent_guard
+    step_kind: if
+    override:
+      if:
+        condition:
+          selector: state.is_urgent
+          operator: equals
+          value: 'yes'
+  - step_id: alert_body
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: 'URGENT security report received
+
+          Report ID: {{ rid }} | Site: {{ site }}
+
+          Officer: {{ officer }} | Shift: {{ shift }} | Event time: {{ time }}
+
+          Type: {{ kind }}
+
+          Severity: URGENT
+
+          Summary: {{ summary }}
+
+          Suggested action: {{ action }}'
+        format: text
+        inputs:
+        - name: rid
+          type: text
+          required: false
+          source: state.inputs.report_id
+        - name: site
+          type: text
+          required: false
+          source: state.site
+        - name: officer
+          type: text
+          required: false
+          source: state.officer_name
+        - name: shift
+          type: text
+          required: false
+          source: state.shift
+        - name: time
+          type: text
+          required: false
+          source: state.event_time
+        - name: kind
+          type: text
+          required: false
+          source: state.report_type
+        - name: summary
+          type: text
+          required: false
+          source: state.summary
+        - name: action
+          type: text
+          required: false
+          source: state.suggested_action
+        result_target: state.alert_body
+  - step_id: alert_subject
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: 'URGENT security report: {{ site }} ({{ kind }})'
+        format: text
+        inputs:
+        - name: site
+          type: text
+          required: false
+          source: state.site
+        - name: kind
+          type: text
+          required: false
+          source: state.report_type
+        result_target: state.alert_subject
+  - step_id: supervisor_alert
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection
+      to: state.inputs.supervisor_email
+      subject: state.alert_subject
+      body_text: state.alert_body
+    output_mapping_jsonb:
+      delivered: state.supervisor_alert_delivered
+      provider_message_id: state.supervisor_alert_message_id
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: client_body
+    step_kind: template
+    error_policy:
+      on_error: route_to_step
+    override:
+      template:
+        text: 'Urgent incident report from your security team
+
+          Site: {{ site }}
+
+          Officer: {{ officer }} | Time: {{ time }}
+
+          Type: {{ kind }}
+
+          Summary: {{ summary }}
+
+          The security supervisor has been notified and is coordinating the response.'
+        format: text
+        inputs:
+        - name: site
+          type: text
+          required: false
+          source: state.site
+        - name: officer
+          type: text
+          required: false
+          source: state.officer_name
+        - name: time
+          type: text
+          required: false
+          source: state.event_time
+        - name: kind
+          type: text
+          required: false
+          source: state.report_type
+        - name: summary
+          type: text
+          required: false
+          source: state.summary
+        result_target: state.client_body
+  - step_id: client_alert
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection
+      to: state.inputs.client_email
+      subject: state.alert_subject
+      body_text: state.client_body
+    output_mapping_jsonb:
+      delivered: state.client_alert_delivered
+      provider_message_id: state.client_alert_message_id
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: Completed
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Setup, data contract or provider failed; inspect effects before retry
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: setup
+    edges:
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: setup_guard
+      rework: false
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: normalize_officer_name
+      rework: false
+    - source:
+        kind: step
+        id: normalize_officer_name
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_officer_email
+      rework: false
+    - source:
+        kind: step
+        id: normalize_officer_email
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_site
+      rework: false
+    - source:
+        kind: step
+        id: normalize_site
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_shift
+      rework: false
+    - source:
+        kind: step
+        id: normalize_shift
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_report_type
+      rework: false
+    - source:
+        kind: step
+        id: normalize_report_type
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_event_time
+      rework: false
+    - source:
+        kind: step
+        id: normalize_event_time
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: normalize_description
+      rework: false
+    - source:
+        kind: step
+        id: normalize_description
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: validate
+      rework: false
+    - source:
+        kind: step
+        id: validate
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: valid_guard
+      rework: false
+    - source:
+        kind: step
+        id: valid_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: rejection_body
+      rework: false
+    - source:
+        kind: step
+        id: valid_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: classify_defaults
+      rework: false
+    - source:
+        kind: step
+        id: classify_defaults
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: classify_prompt
+      rework: false
+    - source:
+        kind: step
+        id: rejection_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: rejection_to
+      rework: false
+    - source:
+        kind: step
+        id: rejection_to
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: rejection_subject
+      rework: false
+    - source:
+        kind: step
+        id: rejection_subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: reject_mail
+      rework: false
+    - source:
+        kind: step
+        id: reject_mail
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: classify_prompt
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: classify
+      rework: false
+    - source:
+        kind: step
+        id: classify
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: classify_check
+      rework: false
+    - source:
+        kind: step
+        id: classify_check
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: classify_guard
+      rework: false
+    - source:
+        kind: step
+        id: classify_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: classify_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: urgent_value
+      rework: false
+    - source:
+        kind: step
+        id: urgent_value
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: row_init
+      rework: false
+    - source:
+        kind: step
+        id: row_init
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: row_fields
+      rework: false
+    - source:
+        kind: step
+        id: row_fields
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: row_array
+      rework: false
+    - source:
+        kind: step
+        id: row_array
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: matrix_init
+      rework: false
+    - source:
+        kind: step
+        id: matrix_init
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: matrix_row
+      rework: false
+    - source:
+        kind: step
+        id: matrix_row
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: matrix_array
+      rework: false
+    - source:
+        kind: step
+        id: matrix_array
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: append_range
+      rework: false
+    - source:
+        kind: step
+        id: append_range
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: append
+      rework: false
+    - source:
+        kind: step
+        id: append
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: append_guard
+      rework: false
+    - source:
+        kind: step
+        id: append_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: append_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: urgent_guard
+      rework: false
+    - source:
+        kind: step
+        id: urgent_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: urgent_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: alert_body
+      rework: false
+    - source:
+        kind: step
+        id: alert_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: alert_subject
+      rework: false
+    - source:
+        kind: step
+        id: alert_subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: supervisor_alert
+      rework: false
+    - source:
+        kind: step
+        id: supervisor_alert
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: client_body
+      rework: false
+    - source:
+        kind: step
+        id: client_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: client_alert
+      rework: false
+    - source:
+        kind: step
+        id: client_alert
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: setup
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_officer_name
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_officer_email
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_site
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_shift
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_report_type
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_event_time
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: normalize_description
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: validate
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: rejection_body
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: rejection_to
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: rejection_subject
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: reject_mail
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: classify_defaults
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: classify_prompt
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: classify
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: classify_check
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: urgent_value
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: row_init
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: row_fields
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: row_array
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: matrix_init
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: matrix_row
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: matrix_array
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: append_range
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: append
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: alert_body
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: alert_subject
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: supervisor_alert
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: client_body
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+    - source:
+        kind: step
+        id: client_alert
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+      rework: false
+dependencies:
+  agents:
+  - agent_id: security_classifier
+    display_name: security_classifier
+    required: true
+    sources:
+    - classify
+    description: 'You are the operations assistant at a private security company.
+      Officers submit patrol logs and incident reports through a mobile form. Read
+      ONLY the supplied report details. Decide severity: urgent (immediate threat
+      to people or property, police/fire/medical likely needed), normal (incident
+      or notable event that needs attention but is not an emergency), or informational
+      (routine observation, no action needed). Write a one paragraph summary a supervisor
+      can read in 10 seconds. For urgent reports give one suggested action (police,
+      fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+      no markdown, no em dashes. Return ONLY valid JSON with exactly these keys: severity
+      (one of urgent, normal, informational), summary (string), suggested_action (string).'
+    version: 0.1.0
+    enabled: false
+  skills:
+  - skill_id: security_classify
+    display_name: security_classify
+    required: true
+    sources:
+    - classify
+    description: 'You are the operations assistant at a private security company.
+      Officers submit patrol logs and incident reports through a mobile form. Read
+      ONLY the supplied report details. Decide severity: urgent (immediate threat
+      to people or property, police/fire/medical likely needed), normal (incident
+      or notable event that needs attention but is not an emergency), or informational
+      (routine observation, no action needed). Write a one paragraph summary a supervisor
+      can read in 10 seconds. For urgent reports give one suggested action (police,
+      fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+      no markdown, no em dashes. Return ONLY valid JSON with exactly these keys: severity
+      (one of urgent, normal, informational), summary (string), suggested_action (string).'
+    version: 0.1.0
+    enabled: false
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.google-workspace
+    display_name: flowsteward.google-workspace
+    required: true
+    sources:
+    - append.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.google-workspace
+      reason: connector_install_id_missing
+  - install_id: flowsteward.outgoing-email
+    display_name: flowsteward.outgoing-email
+    required: true
+    sources:
+    - reject_mail.connector_id
+    - supervisor_alert.connector_id
+    - client_alert.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.outgoing-email
+      reason: connector_install_id_missing
+  project_connections: []
+definitions:
+  agents:
+  - agent_id: security_classifier
+    version: 0.1.0
+    display_name: security_classifier
+    description: 'You are the operations assistant at a private security company.
+      Officers submit patrol logs and incident reports through a mobile form. Read
+      ONLY the supplied report details. Decide severity: urgent (immediate threat
+      to people or property, police/fire/medical likely needed), normal (incident
+      or notable event that needs attention but is not an emergency), or informational
+      (routine observation, no action needed). Write a one paragraph summary a supervisor
+      can read in 10 seconds. For urgent reports give one suggested action (police,
+      fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+      no markdown, no em dashes. Return ONLY valid JSON with exactly these keys: severity
+      (one of urgent, normal, informational), summary (string), suggested_action (string).'
+    enabled: false
+    category: ''
+    prompts:
+      system: 'You are the operations assistant at a private security company. Officers
+        submit patrol logs and incident reports through a mobile form. Read ONLY the
+        supplied report details. Decide severity: urgent (immediate threat to people
+        or property, police/fire/medical likely needed), normal (incident or notable
+        event that needs attention but is not an emergency), or informational (routine
+        observation, no action needed). Write a one paragraph summary a supervisor
+        can read in 10 seconds. For urgent reports give one suggested action (police,
+        fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+        no markdown, no em dashes. Return ONLY valid JSON with exactly these keys:
+        severity (one of urgent, normal, informational), summary (string), suggested_action
+        (string).'
+      context_template: '{{ report_details }}'
+    config: {}
+    quality:
+      retry_on_failure: false
+    tags: []
+    depends_on: {}
+    builder_metadata_jsonb: {}
+    inputs:
+      required:
+      - report_details
+    outputs:
+    - severity
+    - summary
+    - suggested_action
+    structured_inputs:
+    - name: report_details
+      type: text
+      required: true
+    structured_outputs:
+    - name: severity
+      type: text
+      required: true
+    - name: summary
+      type: text
+      required: true
+    - name: suggested_action
+      type: text
+      required: false
+    skills:
+    - skill_id: security_classify
+      skill_prompt: 'You are the operations assistant at a private security company.
+        Officers submit patrol logs and incident reports through a mobile form. Read
+        ONLY the supplied report details. Decide severity: urgent (immediate threat
+        to people or property, police/fire/medical likely needed), normal (incident
+        or notable event that needs attention but is not an emergency), or informational
+        (routine observation, no action needed). Write a one paragraph summary a supervisor
+        can read in 10 seconds. For urgent reports give one suggested action (police,
+        fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+        no markdown, no em dashes. Return ONLY valid JSON with exactly these keys:
+        severity (one of urgent, normal, informational), summary (string), suggested_action
+        (string).'
+    tools: []
+  skills:
+  - skill_id: security_classify
+    version: 0.1.0
+    display_name: security_classify
+    description: 'You are the operations assistant at a private security company.
+      Officers submit patrol logs and incident reports through a mobile form. Read
+      ONLY the supplied report details. Decide severity: urgent (immediate threat
+      to people or property, police/fire/medical likely needed), normal (incident
+      or notable event that needs attention but is not an emergency), or informational
+      (routine observation, no action needed). Write a one paragraph summary a supervisor
+      can read in 10 seconds. For urgent reports give one suggested action (police,
+      fire, medical, or supervisor). Keep the summary under 60 words, plain text,
+      no markdown, no em dashes. Return ONLY valid JSON with exactly these keys: severity
+      (one of urgent, normal, informational), summary (string), suggested_action (string).'
+    enabled: false
+    category: operations
+    skill_type: base
+    instructions:
+    - 'You are the operations assistant at a private security company. Officers submit
+      patrol logs and incident reports through a mobile form. Read ONLY the supplied
+      report details. Decide severity: urgent (immediate threat to people or property,
+      police/fire/medical likely needed), normal (incident or notable event that needs
+      attention but is not an emergency), or informational (routine observation, no
+      action needed). Write a one paragraph summary a supervisor can read in 10 seconds.
+      For urgent reports give one suggested action (police, fire, medical, or supervisor).
+      Keep the summary under 60 words, plain text, no markdown, no em dashes. Return
+      ONLY valid JSON with exactly these keys: severity (one of urgent, normal, informational),
+      summary (string), suggested_action (string).'
+    prompt_template: '{{ report_details }}'
+    examples: []
+    tags: []
+    builder_metadata_jsonb: {}
+    expected_inputs:
+    - name: report_details
+      type: text
+      required: true
+    expected_outputs:
+    - name: severity
+      type: text
+      required: true
+    - name: summary
+      type: text
+      required: true
+    - name: suggested_action
+      type: text
+      required: false
+  data_contracts: []
+  guardrails: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

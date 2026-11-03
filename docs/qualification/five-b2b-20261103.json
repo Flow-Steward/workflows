@@ -1,0 +1,1982 @@
+{
+  "qualification": "fixture_engine_verified_unbound_templates",
+  "qualified_at": "2026-11-03",
+  "source_workflows": 5,
+  "catalog_templates": 7,
+  "workflow_definitions": 10,
+  "scenario_count": 107,
+  "scenario_passed": 107,
+  "provider_api_calls": 0,
+  "external_socket_attempts": 0,
+  "core_commit": "21601831d5f816e94f7ba2135585715f96f80316",
+  "runtime_image": "sha256:7ca8f39a5ee86708992ea91e111ba50dc5aa4f9b8cb42754b9581f6ed48bcc1f",
+  "fixture_source_zip_sha256": "cc5d5f53283b40b921a0a60d7632bcfb81f0fda0a561954e335ffea57cbca81e",
+  "runtime_receipt_sha256": "2cb92c70ecfaede5d9947ffcf63f1b14a42bbb23d12b4adfa362205432d46561",
+  "canonical_production_exporter": true,
+  "live_product_save_or_import": false,
+  "production_step_dependency_rewrite_exercised": true,
+  "live_provider_verified": false,
+  "live_model_quality_verified": false,
+  "project_connections_bound": false,
+  "network_disabled": true,
+  "fixture_boundaries": [
+    "fixture registry/installation/host auth/connection/effect ledger; actual portability extension-install rewrite and native action derivation",
+    "real in-memory artifact plane with fixture grants",
+    "released Workspace/SMTP handlers with fake provider transports",
+    "real PromptAgent with scripted model client",
+    "synchronous child launcher invokes real nested graph, broker persistence excluded",
+    "fixture checkpoint IO retains two snapshots with official MemorySaver save/read; all writes checked before historical GC; durability/history replay unverified"
+  ],
+  "checkpoint_io_stats": {
+    "writes": 10372,
+    "canary_checks": 10372,
+    "max_retained_snapshots": 2
+  },
+  "templates": [
+    {
+      "file": "workflows/finance/invoice_reminders_20173.yaml",
+      "sha256": "dfb25347f8db367c4ab8479cfe630b798ff6352a0d8509ee6e1bca40ac207c69",
+      "n8n_source": "20173",
+      "root_workflow_id": "invoice_reminders_20173",
+      "workflow_ids": [
+        "invoice_reminders_20173",
+        "invoice_stage_write_20173"
+      ],
+      "definitions": {},
+      "scenario_count": 34,
+      "scenario_passed": 34,
+      "native_operation_changes": [
+        {
+          "workflow_id": "invoice_reminders_20173",
+          "step_id": "read_invoices",
+          "from": "connector.invoice_sheets_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "invoice_reminders_20173",
+          "step_id": "send_invoice",
+          "from": "connector.invoice_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        },
+        {
+          "workflow_id": "invoice_reminders_20173",
+          "step_id": "send_aging",
+          "from": "connector.invoice_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        },
+        {
+          "workflow_id": "invoice_stage_write_20173",
+          "step_id": "reread",
+          "from": "connector.invoice_sheets_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "invoice_stage_write_20173",
+          "step_id": "write_snapshot",
+          "from": "connector.invoice_sheets_write",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "write_google_sheet"
+        }
+      ]
+    },
+    {
+      "file": "workflows/sales/seller_weekly_reports_20542.yaml",
+      "sha256": "fa4cff9eb5ebc3a558852f5ac4175f6e15b4b22979fa3d16b09ad71388f804a1",
+      "n8n_source": "20542",
+      "root_workflow_id": "seller_weekly_reports_20542",
+      "workflow_ids": [
+        "seller_weekly_reports_20542"
+      ],
+      "definitions": {},
+      "scenario_count": 10,
+      "scenario_passed": 10,
+      "native_operation_changes": [
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "read_listings",
+          "from": "connector.seller_sheet_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "read_leads",
+          "from": "connector.seller_sheet_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "read_viewings",
+          "from": "connector.seller_sheet_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "send_report",
+          "from": "connector.seller_smtp_send",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        },
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "reread_listings",
+          "from": "connector.seller_sheet_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "seller_weekly_reports_20542",
+          "step_id": "save_dates",
+          "from": "connector.seller_sheet_write",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "write_google_sheet"
+        }
+      ]
+    },
+    {
+      "file": "workflows/operations/security_intake_20438.yaml",
+      "sha256": "5a1bdf0e99ce9ff0d142e708fa0cced867977823978faaced2b4c1004b449677",
+      "n8n_source": "20438",
+      "root_workflow_id": "security_intake_20438",
+      "workflow_ids": [
+        "security_intake_20438"
+      ],
+      "definitions": {
+        "agents": 1,
+        "skills": 1,
+        "data_contracts": 0,
+        "guardrails": 0
+      },
+      "scenario_count": 11,
+      "scenario_passed": 11,
+      "native_operation_changes": [
+        {
+          "workflow_id": "security_intake_20438",
+          "step_id": "reject_mail",
+          "from": "connector.security_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        },
+        {
+          "workflow_id": "security_intake_20438",
+          "step_id": "append",
+          "from": "connector.security_append",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "append_google_sheet_rows"
+        },
+        {
+          "workflow_id": "security_intake_20438",
+          "step_id": "supervisor_alert",
+          "from": "connector.security_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        },
+        {
+          "workflow_id": "security_intake_20438",
+          "step_id": "client_alert",
+          "from": "connector.security_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        }
+      ]
+    },
+    {
+      "file": "workflows/operations/security_daily_20438.yaml",
+      "sha256": "ef6764713f54316290e2b357433dc2cd0c3b4e58796755d0e6d71fafe5c8e8ec",
+      "n8n_source": "20438",
+      "root_workflow_id": "security_daily_20438",
+      "workflow_ids": [
+        "security_daily_20438"
+      ],
+      "definitions": {},
+      "scenario_count": 5,
+      "scenario_passed": 5,
+      "native_operation_changes": [
+        {
+          "workflow_id": "security_daily_20438",
+          "step_id": "read",
+          "from": "connector.security_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "security_daily_20438",
+          "step_id": "digest_mail",
+          "from": "connector.security_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        }
+      ]
+    },
+    {
+      "file": "workflows/operations/security_monthly_20438.yaml",
+      "sha256": "3e2dd18e94e2e46224d245616341bd534369049cc3d4991380c250aa4bf8eb1b",
+      "n8n_source": "20438",
+      "root_workflow_id": "security_monthly_20438",
+      "workflow_ids": [
+        "security_monthly_20438"
+      ],
+      "definitions": {
+        "agents": 1,
+        "skills": 1,
+        "data_contracts": 0,
+        "guardrails": 0
+      },
+      "scenario_count": 4,
+      "scenario_passed": 4,
+      "native_operation_changes": [
+        {
+          "workflow_id": "security_monthly_20438",
+          "step_id": "read",
+          "from": "connector.security_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "security_monthly_20438",
+          "step_id": "digest_mail",
+          "from": "connector.security_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        }
+      ]
+    },
+    {
+      "file": "workflows/data/weekly_kpi_17827.yaml",
+      "sha256": "addf277e81971ba8ffd39aa33f060e2c07ded9613c9969b61868d9908b20efb1",
+      "n8n_source": "17827",
+      "root_workflow_id": "weekly_kpi_17827",
+      "workflow_ids": [
+        "weekly_kpi_17827"
+      ],
+      "definitions": {
+        "agents": 1,
+        "skills": 1,
+        "data_contracts": 0,
+        "guardrails": 0
+      },
+      "scenario_count": 28,
+      "scenario_passed": 28,
+      "native_operation_changes": [
+        {
+          "workflow_id": "weekly_kpi_17827",
+          "step_id": "read_metrics",
+          "from": "connector.weekly_kpi_sheets",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "weekly_kpi_17827",
+          "step_id": "email_report",
+          "from": "connector.weekly_kpi_smtp",
+          "to": "extension.flowsteward.outgoing-email",
+          "operation_id": "send_email"
+        }
+      ]
+    },
+    {
+      "file": "workflows/support/ux_feedback_9881.yaml",
+      "sha256": "d3124c40569989ffb71e109ca39bc12fa402ee2c8a6998282cdaf6be95c2a7d1",
+      "n8n_source": "9881",
+      "root_workflow_id": "ux_feedback_9881",
+      "workflow_ids": [
+        "ux_feedback_9881",
+        "ux_feedback_batch",
+        "ux_feedback_update"
+      ],
+      "definitions": {
+        "agents": 1,
+        "skills": 1,
+        "data_contracts": 0,
+        "guardrails": 0
+      },
+      "scenario_count": 15,
+      "scenario_passed": 15,
+      "native_operation_changes": [
+        {
+          "workflow_id": "ux_feedback_9881",
+          "step_id": "read_tags",
+          "from": "connector.ux_tags_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "ux_feedback_9881",
+          "step_id": "read_feedback",
+          "from": "connector.ux_feedback_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "ux_feedback_update",
+          "step_id": "fresh_read",
+          "from": "connector.ux_feedback_read",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "read_google_sheet"
+        },
+        {
+          "workflow_id": "ux_feedback_update",
+          "step_id": "overwrite",
+          "from": "connector.ux_feedback_write",
+          "to": "extension.flowsteward.google-workspace",
+          "operation_id": "write_google_sheet"
+        }
+      ]
+    }
+  ],
+  "import_preflight": [
+    {
+      "file": "invoice_reminders_20173.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "security_daily_20438.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "security_intake_20438.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "security_monthly_20438.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "seller_weekly_reports_20542.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "ux_feedback_9881.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace"
+      ],
+      "can_apply_without_setup": false
+    },
+    {
+      "file": "weekly_kpi_17827.yaml",
+      "topology_issues": 0,
+      "invalid_definitions": 0,
+      "expected_extension_install_requirements": [
+        "flowsteward.google-workspace",
+        "flowsteward.outgoing-email"
+      ],
+      "can_apply_without_setup": false
+    }
+  ],
+  "invariants": [
+    {
+      "path": "workflows/finance/invoice_reminders_20173.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 5
+    },
+    {
+      "path": "workflows/sales/seller_weekly_reports_20542.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 6
+    },
+    {
+      "path": "workflows/operations/security_intake_20438.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 4
+    },
+    {
+      "path": "workflows/operations/security_daily_20438.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 2
+    },
+    {
+      "path": "workflows/operations/security_monthly_20438.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 2
+    },
+    {
+      "path": "workflows/data/weekly_kpi_17827.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 2
+    },
+    {
+      "path": "workflows/support/ux_feedback_9881.yaml",
+      "execution_graphs_control_bodies_settings_mappings_error_policies_and_business_overrides_preserved": true,
+      "allowed_export_normalization": "readable default labels; absent optional container parent becomes null",
+      "redactions": 0,
+      "portable_native_operation_changes": 4
+    }
+  ],
+  "scenarios": [
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "due-friendly",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "due-friendly-real-customer",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "future-skipped",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "paid-skipped",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "cancelled-skipped",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "already-friendly-string-zero",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "already-friendly-numeric-zero",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "helpful-day7",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "firm-day14",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "highest-stage-only",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "stage-already-sent",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "escalation-day30",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "escalation-already-sent",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "update-middle-retains-tail",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "sequential-updates-retain-first-and-tail",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "empty-table",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "duplicate-id-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "invalid-date-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "invalid-amount-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "fractional-cent-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "missing-invoice-id-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "invalid-stage-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "setup-not-confirmed",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "missing-required-setup",
+      "status": "input_rejected",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "smtp-failure-before-accept",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "formatted-serial-text-date-due",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "monday-all-aging-buckets-exact-cents",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "monday-reminder-and-aging",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "monday-empty-report",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "monday-aging-smtp-failure",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "over-preview-bound-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "byte-truncated-preview-rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "maximum100-middle-update-full-tail",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20173",
+      "workflow_id": "invoice_reminders_20173",
+      "case": "tail-blanks-before-nonempty-last-date-retain-positions",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true,
+        "sheet_cell_6": true,
+        "sheet_cell_7": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "grouped_sellers_middle_and_tail_preserved",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "empty_tables",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "no_eligible_rows",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "smtp_failure_before_accept_no_dates",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "malformed_date_fails_closed",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "advice_priority_and_stale_source_window",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "preview_row_bound_101_rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "preview_byte_budget_rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "schema_mismatch_rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20542",
+      "workflow_id": "seller_weekly_reports_20542",
+      "case": "window_closed_boundaries_and_escape",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "urgent_two_sequential_emails",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "nonurgent_logged_no_email",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "informational_logged",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "required_detail_rejection",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "missing_officer_email_rejection_fallback",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "form_label_aliases",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "invalid_classification_enum",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "invalid_classification_empty_summary",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "setup_unbound",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "smtp_failure_stops_second_email_after_log",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_daily_20438",
+      "case": "daily_full_filter_sort_digest",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_daily_20438",
+      "case": "daily_empty",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_daily_20438",
+      "case": "daily_only_outside_window",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_daily_20438",
+      "case": "daily_exact_window_boundaries",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_daily_20438",
+      "case": "daily_overflow_rejected",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_monthly_20438",
+      "case": "monthly_complete_stats_and_review",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_monthly_20438",
+      "case": "monthly_empty",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_monthly_20438",
+      "case": "monthly_invalid_model",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_monthly_20438",
+      "case": "monthly_smtp_failure",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "20438",
+      "workflow_id": "security_intake_20438",
+      "case": "append_preserves_existing_row",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "ordinary",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "zero",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "negative_half_tie",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "decimal_exact",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "empty",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "alias_headers",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "html_escaping",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "at_limit",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "over_limit",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "preview_incomplete",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "setup_not_ready",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "model_setup_deferred",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "model_wrong_shape",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "model_empty",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "model_missing_field",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "smtp_failure",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_0",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_1",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_2",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_3",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_4",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_5",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_6",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_7",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "malformed_8",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "all_periods_no_filter",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "fallback_metric_name",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "17827",
+      "workflow_id": "weekly_kpi_17827",
+      "case": "null_primary_value_alias",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "two_feedback_middle_updates_preserve_distinct_tail",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true,
+        "sheet_cell_6": true,
+        "sheet_cell_7": true,
+        "sheet_cell_8": true,
+        "sheet_cell_9": true,
+        "sheet_cell_10": true,
+        "sheet_cell_11": true,
+        "sheet_cell_12": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "twelve_feedback_cross_batch_boundary",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "no_eligible_feedback",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "missing_tags_column",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "unknown_feedback_row_id",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "duplicate_feedback_row_id",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "incomplete_model_batch",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "unknown_allowed_tag",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "invalid_model_output",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "incomplete_preview_bytes",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "row_bound_101",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "setup_not_confirmed",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "missing_required_setup",
+      "status": "input_rejected",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "fallback_needs_review",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true
+      },
+      "passed": true
+    },
+    {
+      "source_id": "9881",
+      "workflow_id": "ux_feedback_9881",
+      "case": "exact_100_data_rows_middle_update_preserves_header_and_tail",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "email_body": true,
+        "model_calls": true,
+        "sheet_cell_0": true,
+        "sheet_cell_1": true,
+        "sheet_cell_2": true,
+        "sheet_cell_3": true,
+        "sheet_cell_4": true,
+        "sheet_cell_5": true,
+        "sheet_cell_6": true,
+        "sheet_cell_7": true,
+        "sheet_cell_8": true,
+        "sheet_cell_9": true,
+        "sheet_cell_10": true,
+        "sheet_cell_11": true,
+        "sheet_cell_12": true,
+        "sheet_cell_13": true,
+        "sheet_cell_14": true,
+        "sheet_cell_15": true,
+        "sheet_cell_16": true,
+        "sheet_cell_17": true,
+        "sheet_cell_18": true,
+        "sheet_cell_19": true,
+        "sheet_cell_20": true,
+        "sheet_cell_21": true
+      },
+      "passed": true
+    }
+  ]
+}

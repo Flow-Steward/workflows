@@ -1,0 +1,1796 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-03T19:27:57+00:00'
+  exported_by: admin
+  source_workflow_id: invoice_reminders_20173
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+  child_workflow_ids:
+  - invoice_stage_write_20173
+workflows:
+- workflow_id: invoice_reminders_20173
+  version: 0.1.0
+  display_name: Invoice reminders, escalation and weekly aging
+  description: 'Remind customers about overdue invoices, escalate and produce an aging
+    report. Adapted from https://n8n.io/workflows/20173/. Offline executor qualification:
+    34 source scenarios passed with synthetic provider/model replies; no live API
+    or import verification. Disabled on import. Configure released Google Workspace
+    0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to
+    100 rows per table; use dedicated contiguous plain-value tables and one writer.
+    SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs
+    require separate setup; only callable workflow structure is included. Select the
+    model, validate setup and enable any included agents, skills and child workflows
+    before enabling the main workflow.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: json_schema
+      strict_inputs: true
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+      input_schema:
+        type: object
+        properties:
+          today:
+            type: string
+            minLength: 1
+          google_connection_ref:
+            type: string
+            minLength: 1
+          smtp_connection_ref:
+            type: string
+            minLength: 1
+          spreadsheet_id:
+            type: string
+            minLength: 1
+          company_name:
+            type: string
+            minLength: 1
+          sender_name:
+            type: string
+            minLength: 1
+          finance_email:
+            type: string
+            minLength: 1
+          escalation_email:
+            type: string
+            minLength: 1
+          setup_confirmed:
+            type: boolean
+          reminder_days:
+            type: array
+            minItems: 1
+            items:
+              type: integer
+              minimum: 0
+          escalation_day:
+            type: integer
+            minimum: 1
+          closed_statuses:
+            type: array
+            items:
+              type: string
+          aging_report_weekday:
+            type: integer
+            minimum: 0
+            maximum: 6
+          test_mode:
+            type: boolean
+        required:
+        - today
+        - google_connection_ref
+        - smtp_connection_ref
+        - spreadsheet_id
+        - company_name
+        - sender_name
+        - finance_email
+        - escalation_email
+        - setup_confirmed
+        - reminder_days
+        - escalation_day
+        - closed_statuses
+        - aging_report_weekday
+        - test_mode
+        additionalProperties: false
+  participants: []
+  tags:
+  - migration
+  - n8n
+  - disabled
+  - business-equivalent
+  steps:
+  - step_id: headers
+    step_kind: set_variable
+    override:
+      set_variable:
+        assignments:
+          state.headers:
+          - invoice_id
+          - customer_name
+          - customer_email
+          - amount
+          - currency
+          - due_date
+          - status
+          - payment_link
+          - notes
+          - last_stage_sent
+          - last_sent_at
+  - step_id: setup_guard
+    step_kind: if
+    override:
+      if:
+        condition: state.inputs.setup_confirmed == true
+  - step_id: read_invoices
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.google_connection_ref
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: literal:Invoices
+      header_mode: literal:first_row
+    output_mapping_jsonb:
+      result: state.sheet
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: validate_table
+    step_kind: template
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {%- set n=namespace(ok=true,ids=[]) -%}
+
+          {%- if not p.setup_confirmed or ordinal(p.today)==''invalid'' or p.today
+          is not string or not p.google_connection_ref or not p.smtp_connection_ref
+          or not p.spreadsheet_id or not p.finance_email or ''@'' not in p.finance_email
+          or ''@'' not in p.escalation_email -%}{%- set n.ok=false -%}{%- endif -%}
+
+          {%- if s.row_count>100 or s.preview|length!=s.row_count or s.column_count!=11
+          or s.schema|map(attribute=''name'')|list!=headers -%}{%- set n.ok=false
+          -%}{%- endif -%}
+
+          {%- if p.reminder_days|length==0 or p.reminder_days|unique|list|length!=p.reminder_days|length
+          or p.escalation_day<1 or p.aging_report_weekday<0 or p.aging_report_weekday>6
+          -%}{%- set n.ok=false -%}{%- endif -%}
+
+          {%- for day in p.reminder_days -%}{%- if day is not integer or day<0 or
+          day>=p.escalation_day -%}{%- set n.ok=false -%}{%- endif -%}{%- endfor -%}
+
+          {%- for r in s.preview -%}
+
+          {%- if r.invoice_id is not string or not r.invoice_id or r.invoice_id in
+          n.ids or ordinal(r.due_date)==''invalid'' or cents(r.amount)==''invalid''
+          or not r.customer_email or ''@'' not in r.customer_email or r.currency is
+          not string or r.currency|length!=3 -%}{%- set n.ok=false -%}{%- endif -%}
+
+          {%- set n.ids=n.ids+[r.invoice_id] -%}
+
+          {%- set last=(r.last_stage_sent if r.last_stage_sent is not none else '''')|string
+          -%}
+
+          {%- if last and (not last.isdigit()) -%}{%- set n.ok=false -%}{%- endif
+          -%}
+
+          {%- endfor -%}{{ ''ok'' if n.ok else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: s
+          type: object
+          required: true
+          source: state.sheet
+        - name: headers
+          type: array
+          required: true
+          source: state.headers
+        result_target: state.validate_table
+  - step_id: valid_table
+    step_kind: if
+    override:
+      if:
+        condition: state.validate_table == 'ok'
+  - step_id: stage
+    step_kind: template
+    for_each_id: invoices
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {%- set days=ordinal(p.today)|int-ordinal(r.due_date)|int -%}
+
+          {%- set last=(r.last_stage_sent if r.last_stage_sent is not none else '''')
+          -%}
+
+          {%- set previous=last|int if last|string|length else -999999 -%}
+
+          {%- set n=namespace(stage=-1) -%}
+
+          {%- if r.status|default('''',true)|trim|lower not in p.closed_statuses -%}
+
+          {%- if days>=p.escalation_day and previous<p.escalation_day -%}{%- set n.stage=p.escalation_day
+          -%}
+
+          {%- else -%}{%- for day in p.reminder_days|sort -%}
+
+          {%- if day<=days and day>previous and day<p.escalation_day -%}{%- set n.stage=day
+          -%}{%- endif -%}
+
+          {%- endfor -%}{%- endif -%}{%- endif -%}
+
+          {{ n.stage }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: r
+          type: object
+          required: true
+          source: state.invoice
+        result_target: state.stage
+  - step_id: should_send
+    step_kind: if
+    for_each_id: invoices
+    override:
+      if:
+        condition: state.stage != '-1'
+  - step_id: recipient
+    step_kind: template
+    for_each_id: invoices
+    override:
+      template:
+        text: '{{ p.escalation_email if stage|int==p.escalation_day else (p.finance_email
+          if p.test_mode else r.customer_email) }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: r
+          type: object
+          required: true
+          source: state.invoice
+        - name: stage
+          type: text
+          required: true
+          source: state.stage
+        result_target: state.recipient
+  - step_id: subject
+    step_kind: template
+    for_each_id: invoices
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {%- set days=ordinal(p.today)|int-ordinal(r.due_date)|int -%}
+
+          {%- set index=p.reminder_days|sort|list -%}
+
+          {%- if stage|int==p.escalation_day -%}Escalation: {{r.customer_name}} /
+          invoice {{r.invoice_id}} is {{days}} days overdue
+
+          {%- else -%}{{ ''[TEST to ''~r.customer_email~''] '' if p.test_mode else
+          '''' }}
+
+          {%- if stage|int==index[0] -%}Friendly reminder: invoice {{r.invoice_id}}
+          is due
+
+          {%- elif index|length>1 and stage|int==index[1] -%}Invoice {{r.invoice_id}}
+          is {{days}} days overdue
+
+          {%- else -%}Action needed: invoice {{r.invoice_id}} is {{days}} days overdue{%-
+          endif -%}{%- endif -%}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: r
+          type: object
+          required: true
+          source: state.invoice
+        - name: stage
+          type: text
+          required: true
+          source: state.stage
+        result_target: state.subject
+  - step_id: body
+    step_kind: template
+    for_each_id: invoices
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {%- set days=ordinal(p.today)|int-ordinal(r.due_date)|int -%}
+
+          {%- set index=p.reminder_days|sort|list -%}
+
+          {%- if stage|int==p.escalation_day -%}
+
+          Automatic reminders for this invoice have ended. It now needs a personal
+          call.
+
+
+          Customer: {{r.customer_name}} <{{r.customer_email}}>
+
+          Invoice: {{r.invoice_id}}
+
+          Amount: {{money(cents(r.amount)|int)}} {{r.currency}}
+
+          Due date: {{iso(r.due_date)}} ({{days}} days overdue)
+
+          Last reminder stage sent: {{''day ''~r.last_stage_sent if (r.last_stage_sent
+          if r.last_stage_sent is not none else '''')|string|length else ''none''}}
+
+          {{''Notes: ''~r.notes if r.notes else ''''}}
+
+          {%- else -%}
+
+          Hello {{r.customer_name|default('''',true)}},
+
+
+          {% if stage|int==index[0] -%}
+
+          This is a quick reminder that the invoice below is due. If it has already
+          been paid, please ignore this message.
+
+          {%- elif index|length>1 and stage|int==index[1] -%}
+
+          We have not yet received payment for the invoice below.
+
+          {%- else -%}
+
+          The invoice below is now {{days}} days past due. Please arrange payment
+          or let us know the expected payment date by replying to this email.
+
+          {%- endif %}
+
+
+          Invoice: {{r.invoice_id}}
+
+          Amount: {{money(cents(r.amount)|int)}} {{r.currency}}
+
+          Due date: {{iso(r.due_date)}}
+
+          {% if r.payment_link %}
+
+          Pay online: {{r.payment_link}}
+
+          {% endif %}
+
+          Thank you,
+
+          {{p.sender_name}}
+
+          {{p.company_name}}
+
+          {%- endif -%}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: r
+          type: object
+          required: true
+          source: state.invoice
+        - name: stage
+          type: text
+          required: true
+          source: state.stage
+        result_target: state.body
+  - step_id: send_invoice
+    step_kind: connector
+    for_each_id: invoices
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection_ref
+      to: state.recipient
+      subject: state.subject
+      body_text: state.body
+    output_mapping_jsonb:
+      delivered: state.delivered
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: accepted
+    step_kind: if
+    for_each_id: invoices
+    override:
+      if:
+        condition: state.delivered == true
+  - step_id: log_stage
+    step_kind: invoke_workflow
+    for_each_id: invoices
+    error_policy:
+      on_error: route_to_step
+    override:
+      invoke_workflow:
+        workflow_id: invoice_stage_write_20173
+        input_mapping:
+          google_connection_ref: state.inputs.google_connection_ref
+          spreadsheet_id: state.inputs.spreadsheet_id
+          invoice_id: state.invoice.invoice_id
+          stage_day: state.stage
+          today: state.inputs.today
+          setup_confirmed: state.inputs.setup_confirmed
+  - step_id: skip_invoice
+    step_kind: continue
+    for_each_id: invoices
+  - step_id: invoice_failure
+    step_kind: stop_fail
+    for_each_id: invoices
+    override:
+      stop_fail:
+        message: Invoice send was not accepted; stage not recorded
+  - step_id: weekly_day
+    step_kind: template
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {{ (ordinal(p.today)|int)%7 }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        result_target: state.weekly_day
+  - step_id: weekly_due
+    step_kind: template
+    override:
+      template:
+        text: '{{ ''yes'' if weekday|int==p.aging_report_weekday else ''no'' }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: weekday
+          type: text
+          required: true
+          source: state.weekly_day
+        result_target: state.weekly_due
+  - step_id: weekly_branch
+    step_kind: if
+    override:
+      if:
+        condition: state.weekly_due == 'yes'
+  - step_id: aging_body
+    step_kind: template
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          Open receivables by age ({{p.today}})
+
+          {% set ns=namespace(oldest=[]) -%}
+
+          {%- set names=[''Not yet due'',''0-30 days'',''31-60 days'',''61-90 days'',''90+
+          days''] -%}
+
+          {%- for b in range(5) -%}
+
+          {%- set n=namespace(count=0, currencies=[]) -%}
+
+          {%- for r in rows -%}
+
+          {%- set days=ordinal(p.today)|int-ordinal(r.due_date)|int -%}
+
+          {%- set bucket=0 if days<0 else (1 if days<=30 else (2 if days<=60 else
+          (3 if days<=90 else 4))) -%}
+
+          {%- if r.status|default('''',true)|trim|lower not in p.closed_statuses and
+          bucket==b -%}
+
+          {%- set n.count=n.count+1 -%}{%- if r.currency not in n.currencies -%}{%-
+          set n.currencies=n.currencies+[r.currency] -%}{%- endif -%}
+
+          {%- if days>60 -%}{%- set ns.oldest=ns.oldest+[{''days'':days,''row'':r}]
+          -%}{%- endif -%}
+
+          {%- endif -%}{%- endfor %}
+
+          {{names[b]}}: {{n.count}} invoices   {% if not n.currencies %}0{% endif
+          %}
+
+          {%- for cur in n.currencies -%}
+
+          {%- set total=namespace(c=0) -%}{%- for r in rows -%}
+
+          {%- set days=ordinal(p.today)|int-ordinal(r.due_date)|int -%}
+
+          {%- set bucket=0 if days<0 else (1 if days<=30 else (2 if days<=60 else
+          (3 if days<=90 else 4))) -%}
+
+          {%- if r.status|default('''',true)|trim|lower not in p.closed_statuses and
+          bucket==b and r.currency==cur -%}{%- set total.c=total.c+cents(r.amount)|int
+          -%}{%- endif -%}{%- endfor -%}
+
+          {{ '' + '' if not loop.first else '''' }}{{money(total.c)}} {{cur}}
+
+          {%- endfor -%}{%- endfor %}
+
+          {% if ns.oldest %}Over 60 days, oldest first:
+
+          {% for item in ns.oldest|sort(attribute=''days'',reverse=true) -%}
+
+          - {{item.row.customer_name}} / {{item.row.invoice_id}}: {{money(cents(item.row.amount)|int)}}
+          {{item.row.currency}} ({{item.days}} days)
+
+          {% endfor %}{% endif %}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: rows
+          type: array
+          required: true
+          source: state.sheet.preview
+        result_target: state.aging_body
+  - step_id: aging_subject
+    step_kind: template
+    override:
+      template:
+        text: '{{p.company_name}}: weekly receivables aging report'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        result_target: state.aging_subject
+  - step_id: send_aging
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection_ref
+      to: state.inputs.finance_email
+      subject: state.aging_subject
+      body_text: state.aging_body
+    output_mapping_jsonb:
+      delivered: state.aging_delivered
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: aging_accepted
+    step_kind: if
+    override:
+      if:
+        condition: state.aging_delivered == true
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Invalid setup/table or provider failure; inspect before retrying
+          uncertain effects
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: All eligible invoice stages and the due weekly report processed
+  groups: []
+  for_each:
+  - for_each_id: invoices
+    group_id: null
+    display_name: invoices
+    over: state.sheet.preview
+    item_name: invoice
+    index_name: invoice_index
+    body:
+      kind: sequence
+      entry:
+        kind: step
+        id: stage
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: headers
+    edges:
+    - source:
+        kind: step
+        id: headers
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: setup_guard
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: read_invoices
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: read_invoices
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: validate_table
+    - source:
+        kind: step
+        id: validate_table
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: valid_table
+    - source:
+        kind: step
+        id: valid_table
+      outcome:
+        name: 'true'
+      target:
+        kind: for_each
+        id: invoices
+    - source:
+        kind: step
+        id: valid_table
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: stage
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: should_send
+    - source:
+        kind: step
+        id: should_send
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: recipient
+    - source:
+        kind: step
+        id: should_send
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: skip_invoice
+    - source:
+        kind: step
+        id: recipient
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: subject
+    - source:
+        kind: step
+        id: subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: body
+    - source:
+        kind: step
+        id: body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: send_invoice
+    - source:
+        kind: step
+        id: send_invoice
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: accepted
+    - source:
+        kind: step
+        id: accepted
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: log_stage
+    - source:
+        kind: step
+        id: accepted
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: invoice_failure
+    - source:
+        kind: step
+        id: log_stage
+      outcome:
+        name: success
+      target:
+        kind: for_each_exit
+        for_each_id: invoices
+        lane_id: null
+    - source:
+        kind: for_each
+        id: invoices
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: weekly_day
+    - source:
+        kind: step
+        id: weekly_day
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: weekly_due
+    - source:
+        kind: step
+        id: weekly_due
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: weekly_branch
+    - source:
+        kind: step
+        id: weekly_branch
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: aging_body
+    - source:
+        kind: step
+        id: weekly_branch
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+    - source:
+        kind: step
+        id: aging_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: aging_subject
+    - source:
+        kind: step
+        id: aging_subject
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: send_aging
+    - source:
+        kind: step
+        id: send_aging
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: aging_accepted
+    - source:
+        kind: step
+        id: aging_accepted
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: done
+    - source:
+        kind: step
+        id: aging_accepted
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: read_invoices
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: send_aging
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: send_invoice
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: invoice_failure
+    - source:
+        kind: step
+        id: log_stage
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: invoice_failure
+    - source:
+        kind: for_each
+        id: invoices
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+- workflow_id: invoice_stage_write_20173
+  version: 0.1.0
+  display_name: Record accepted invoice stage while preserving complete table
+  description: 'Persist a sent invoice reminder stage while preserving other invoice
+    rows. Adapted from https://n8n.io/workflows/20173/. Offline executor qualification:
+    34 source scenarios passed with synthetic provider/model replies; no live API
+    or import verification. Disabled on import. Configure released Google Workspace
+    0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to
+    100 rows per table; use dedicated contiguous plain-value tables and one writer.
+    SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs
+    require separate setup; only callable workflow structure is included. Select the
+    model, validate setup and enable any included agents, skills and child workflows
+    before enabling the main workflow.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: json_schema
+      strict_inputs: true
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+      input_schema:
+        type: object
+        properties:
+          google_connection_ref:
+            type: string
+            minLength: 1
+          spreadsheet_id:
+            type: string
+            minLength: 1
+          invoice_id:
+            type: string
+            minLength: 1
+          stage_day:
+            type: string
+            minLength: 1
+          today:
+            type: string
+            minLength: 1
+          setup_confirmed:
+            type: boolean
+        required:
+        - google_connection_ref
+        - spreadsheet_id
+        - invoice_id
+        - stage_day
+        - today
+        - setup_confirmed
+        additionalProperties: false
+  participants: []
+  tags:
+  - migration
+  - n8n
+  - disabled
+  - business-equivalent
+  steps:
+  - step_id: init
+    step_kind: set_variable
+    override:
+      set_variable:
+        assignments:
+          state.headers:
+          - invoice_id
+          - customer_name
+          - customer_email
+          - amount
+          - currency
+          - due_date
+          - status
+          - payment_link
+          - notes
+          - last_stage_sent
+          - last_sent_at
+          state.matrix: []
+  - step_id: reread
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.google_connection_ref
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: literal:Invoices
+      header_mode: literal:first_row
+    output_mapping_jsonb:
+      result: state.sheet
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: read_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: check_snapshot
+    step_kind: template
+    override:
+      template:
+        text: '{%- macro ordinal(v) -%}
+
+          {%- if v is number and v is not boolean and v == v|int and v >= 2 and v
+          <= 73050 -%}{{ v|int + 693594 }}
+
+          {%- elif v is string and v.isdigit() and v|int >= 2 and v|int <= 73050 -%}{{
+          v|int + 693594 }}
+
+          {%- elif v is string and v|length == 10 and v[4] == ''-'' and v[7] == ''-''
+          and v[0:4].isdigit() and v[5:7].isdigit() and v[8:10].isdigit() -%}
+
+          {%- set y=v[0:4]|int -%}{%- set m=v[5:7]|int -%}{%- set d=v[8:10]|int -%}
+
+          {%- set leap=(y%4==0 and (y%100!=0 or y%400==0)) -%}
+
+          {%- set lengths=[31,29 if leap else 28,31,30,31,30,31,31,30,31,30,31] -%}
+
+          {%- if y>=1900 and y<=2099 and m>=1 and m<=12 and d>=1 and d<=lengths[m-1]
+          -%}
+
+          {{ 365*(y-1)+(y-1)//4-(y-1)//100+(y-1)//400+[0,31,59,90,120,151,181,212,243,273,304,334][m-1]+(1
+          if leap and m>2 else 0)+d }}
+
+          {%- else -%}invalid{%- endif -%}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro iso(v) -%}
+
+          {%- if v is string and v|length==10 and v[4]==''-'' -%}{{v}}
+
+          {%- else -%}
+
+          {%- set z=v|int-25569+719468 -%}{%- set era=z//146097 -%}{%- set doe=z-era*146097
+          -%}
+
+          {%- set yoe=(doe-doe//1460+doe//36524-doe//146096)//365 -%}{%- set y=yoe+era*400
+          -%}
+
+          {%- set doy=doe-(365*yoe+yoe//4-yoe//100) -%}{%- set mp=(5*doy+2)//153 -%}
+
+          {%- set d=doy-(153*mp+2)//5+1 -%}{%- set m=mp+(3 if mp<10 else -9) -%}
+
+          {{ ''%04d-%02d-%02d''|format(y+(1 if m<=2 else 0),m,d) }}
+
+          {%- endif -%}{%- endmacro -%}
+
+          {%- macro cents(v) -%}
+
+          {%- set s=v|string|trim|replace('','',''.'') -%}{%- set neg=s.startswith(''-'')
+          -%}
+
+          {%- set a=s[1:] if neg else s -%}{%- set p=a.split(''.'') -%}
+
+          {%- if p|length<=2 and p[0].isdigit() and (p|length==1 or (p[1].isdigit()
+          and p[1]|length<=2)) and p[0]|length<=12 -%}
+
+          {{ (-1 if neg else 1)*(p[0]|int*100+((p[1]~''00'')[0:2]|int if p|length==2
+          else 0)) }}
+
+          {%- else -%}invalid{%- endif -%}{%- endmacro -%}
+
+          {%- macro money(c) -%}{{ ''-'' if c<0 else '''' }}{{ (c|abs)//100 }}.{{
+          ''%02d''|format((c|abs)%100) }}{%- endmacro -%}
+
+          {%- set n=namespace(ok=true,matches=0,ids=[]) -%}
+
+          {%- if not p.setup_confirmed or ordinal(p.today)==''invalid'' or not p.stage_day.isdigit()
+          or s.row_count>100 or s.preview|length!=s.row_count or s.column_count!=11
+          or s.schema|map(attribute=''name'')|list!=headers -%}{%- set n.ok=false
+          -%}{%- endif -%}
+
+          {%- for r in s.preview -%}{%- if r.invoice_id is not string or not r.invoice_id
+          or r.invoice_id in n.ids -%}{%- set n.ok=false -%}{%- endif -%}{%- set n.ids=n.ids+[r.invoice_id]
+          -%}{%- if r.invoice_id==p.invoice_id -%}{%- set n.matches=n.matches+1 -%}{%-
+          endif -%}{%- endfor -%}{{ ''ok'' if n.ok and n.matches==1 else ''invalid''
+          }}'
+        format: text
+        inputs:
+        - name: p
+          type: object
+          required: true
+          source: state.inputs
+        - name: s
+          type: object
+          required: true
+          source: state.sheet
+        - name: headers
+          type: array
+          required: true
+          source: state.headers
+        result_target: state.check_snapshot
+  - step_id: snapshot_safe
+    step_kind: if
+    override:
+      if:
+        condition: state.check_snapshot == 'ok'
+  - step_id: row_copy
+    step_kind: transform
+    for_each_id: rows
+    override:
+      transform:
+        input:
+          source: state.record
+        mode: object
+        fields:
+        - from: invoice_id
+          to: invoice_id
+          type: json
+          default: ''
+        - from: customer_name
+          to: customer_name
+          type: json
+          default: ''
+        - from: customer_email
+          to: customer_email
+          type: json
+          default: ''
+        - from: amount
+          to: amount
+          type: json
+          default: ''
+        - from: currency
+          to: currency
+          type: json
+          default: ''
+        - from: due_date
+          to: due_date
+          type: json
+          default: ''
+        - from: status
+          to: status
+          type: json
+          default: ''
+        - from: payment_link
+          to: payment_link
+          type: json
+          default: ''
+        - from: notes
+          to: notes
+          type: json
+          default: ''
+        - from: last_stage_sent
+          to: last_stage_sent
+          type: json
+          default: ''
+        - from: last_sent_at
+          to: last_sent_at
+          type: json
+          default: ''
+        result_target: state.cells
+  - step_id: target_row
+    step_kind: if
+    for_each_id: rows
+    override:
+      if:
+        condition: state.record.invoice_id == state.inputs.invoice_id
+  - step_id: patch_stage
+    step_kind: set_variable
+    for_each_id: rows
+    override:
+      set_variable:
+        assignments:
+          state.cells.last_stage_sent:
+            source: state.inputs.stage_day
+          state.cells.last_sent_at:
+            source: state.inputs.today
+  - step_id: wrap_row
+    step_kind: set_variable
+    for_each_id: rows
+    override:
+      set_variable:
+        assignments:
+          state.wrapper: {}
+          state.wrapper.row:
+            source: state.cells
+  - step_id: row_values
+    step_kind: transform
+    for_each_id: rows
+    override:
+      transform:
+        input:
+          source: state.wrapper
+        mode: object
+        fields:
+        - from: row
+          to: cells
+          type: array
+          actions:
+          - action: json.values
+        result_target: state.projected
+  - step_id: collect_row
+    step_kind: collect
+    for_each_id: rows
+    override:
+      collect:
+        source: state.projected.cells
+        target: state.matrix
+        mode: append
+  - step_id: write_snapshot
+    step_kind: connector
+    connector_id: extension.flowsteward.google-workspace
+    input_mapping_jsonb:
+      connection_ref: state.inputs.google_connection_ref
+      spreadsheet_id: state.inputs.spreadsheet_id
+      sheet_title: literal:Invoices
+      mode: literal:overwrite
+      start_cell: literal:A2
+      inline_rows: state.matrix
+    output_mapping_jsonb:
+      result: state.written
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: write_google_sheet
+        extension_id: flowsteward.google-workspace
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Cannot safely record stage; reconcile sent email and table before
+          retry
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: Accepted stage logged; complete remaining rows preserved
+  groups: []
+  for_each:
+  - for_each_id: rows
+    group_id: null
+    display_name: rows
+    over: state.sheet.preview
+    item_name: record
+    index_name: row_index
+    body:
+      kind: sequence
+      entry:
+        kind: step
+        id: row_copy
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: init
+    edges:
+    - source:
+        kind: step
+        id: init
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: reread
+    - source:
+        kind: step
+        id: reread
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: check_snapshot
+    - source:
+        kind: step
+        id: check_snapshot
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: snapshot_safe
+    - source:
+        kind: step
+        id: snapshot_safe
+      outcome:
+        name: 'true'
+      target:
+        kind: for_each
+        id: rows
+    - source:
+        kind: step
+        id: snapshot_safe
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: row_copy
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: target_row
+    - source:
+        kind: step
+        id: target_row
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: patch_stage
+    - source:
+        kind: step
+        id: target_row
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: wrap_row
+    - source:
+        kind: step
+        id: patch_stage
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: wrap_row
+    - source:
+        kind: step
+        id: wrap_row
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: row_values
+    - source:
+        kind: step
+        id: row_values
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: collect_row
+    - source:
+        kind: step
+        id: collect_row
+      outcome:
+        name: success
+      target:
+        kind: for_each_exit
+        for_each_id: rows
+        lane_id: null
+    - source:
+        kind: for_each
+        id: rows
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: write_snapshot
+    - source:
+        kind: for_each
+        id: rows
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: write_snapshot
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+    - source:
+        kind: step
+        id: reread
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: write_snapshot
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows:
+  - workflow_id: invoice_stage_write_20173
+    display_name: Record accepted invoice stage while preserving complete table
+    required: true
+    sources:
+    - log_stage
+    description: 'Persist a sent invoice reminder stage while preserving other invoice
+      rows. Adapted from https://n8n.io/workflows/20173/. Offline executor qualification:
+      34 source scenarios passed with synthetic provider/model replies; no live API
+      or import verification. Disabled on import. Configure released Google Workspace
+      0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited
+      to 100 rows per table; use dedicated contiguous plain-value tables and one writer.
+      SMTP replaces Gmail sending. Source forms/schedules and trusted current-time
+      inputs require separate setup; only callable workflow structure is included.
+      Select the model, validate setup and enable any included agents, skills and
+      child workflows before enabling the main workflow.'
+    version: 0.1.0
+    enabled: false
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.google-workspace
+    display_name: flowsteward.google-workspace
+    required: true
+    sources:
+    - read_invoices.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.google-workspace
+      reason: connector_install_id_missing
+  - install_id: flowsteward.outgoing-email
+    display_name: flowsteward.outgoing-email
+    required: true
+    sources:
+    - send_invoice.connector_id
+    - send_aging.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.outgoing-email
+      reason: connector_install_id_missing
+  - install_id: flowsteward.google-workspace
+    display_name: flowsteward.google-workspace
+    required: true
+    sources:
+    - reread.connector_id
+    - write_snapshot.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.google-workspace
+      reason: connector_install_id_missing
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow
