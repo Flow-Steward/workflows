@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-03.aea9f7f6",
-  "published_at": "2026-11-03T11:26:55Z",
+  "catalog_revision": "2026-11-03.faa8f4c5",
+  "published_at": "2026-11-03T11:50:51Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -51,53 +51,6 @@
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
       "updated_at": "2026-10-31T17:25:10Z"
-    },
-    {
-      "item_id": "n8n_2454_categorize_outlook",
-      "version": "1.0.0",
-      "name": "Categorize Outlook emails with AI",
-      "summary": "Classify one Outlook inbox message and route it through seven category outcomes using Microsoft Graph and a project-configured AI model.",
-      "description": "Classify one Outlook inbox message and route it through seven category outcomes using Microsoft Graph and a project-configured AI model. Includes the message-processing child and classifier definitions. Manual invocation retains the source one-message fetch limit; this is not a complete mailbox sweep. Category replacement and message moves are external writes with no automatic retry. Configure the Mail.ReadWrite OAuth token and destination folders before running. Imported and statically validated on Flow Steward 0.9.9; provider and model execution have not been tested.",
-      "categories": [
-        "email"
-      ],
-      "tags": [
-        "b2b",
-        "email",
-        "migration",
-        "n8n",
-        "outlook"
-      ],
-      "integrations": [],
-      "trigger_types": [
-        "manual",
-        "sub_workflow"
-      ],
-      "setup_requirements": [
-        {
-          "kind": "llm",
-          "label": "An AI model provider",
-          "required": true
-        }
-      ],
-      "includes": [
-        {
-          "item_id": "n8n_2454_process_message",
-          "name": "Classify and route one Outlook message"
-        }
-      ],
-      "bundle_schema": "platform.workflow_bundle.v2",
-      "compatible_flow_steward": {
-        "min": "0.9.9",
-        "max": ""
-      },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/8eabd10f78042cb27212a0bb7ea99f0b05583c3d/workflows/email/n8n_2454_categorize_outlook.yaml",
-      "workflow_yaml_bytes": 37396,
-      "workflow_yaml_sha256": "c7ac551e4b991a65daf91e6a6ee67919cb48912583f2ec09fe9438ca2fecb4f3",
-      "publication_status": "published",
-      "verification_status": "verified",
-      "added_at": "2026-11-03T11:26:55Z",
-      "updated_at": "2026-11-03T11:26:55Z"
     },
     {
       "item_id": "catalog_appointment_request_review",
@@ -545,111 +498,6 @@
       "verification_status": "verified",
       "added_at": "2026-10-16T09:45:57Z",
       "updated_at": "2026-10-31T17:25:10Z"
-    },
-    {
-      "item_id": "catalog_search_serpapi",
-      "version": "1.0.0",
-      "name": "Search Google with SerpAPI",
-      "summary": "Reusable callable HTTP search for B2B research workflows.",
-      "description": "Reusable callable HTTP search for B2B research workflows. Returns the provider JSON response without a model call. Requires the provider's own credential; retrieves one response only and does not claim complete paginated coverage. Offline-validated template; live provider execution has not been tested. Configure a provider credential before running.",
-      "categories": [
-        "sales"
-      ],
-      "tags": [
-        "b2b",
-        "research",
-        "search",
-        "serpapi"
-      ],
-      "integrations": [],
-      "trigger_types": [
-        "manual",
-        "sub_workflow"
-      ],
-      "setup_requirements": [],
-      "includes": [],
-      "bundle_schema": "platform.workflow_bundle.v2",
-      "compatible_flow_steward": {
-        "min": "0.9.9",
-        "max": ""
-      },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/8eabd10f78042cb27212a0bb7ea99f0b05583c3d/workflows/sales/catalog_search_serpapi.yaml",
-      "workflow_yaml_bytes": 5997,
-      "workflow_yaml_sha256": "38cf9aef7695aaa8f89d94125fd4fba87991725a0b71c3bf308de6db61fdb95e",
-      "publication_status": "published",
-      "verification_status": "verified",
-      "added_at": "2026-11-03T11:26:55Z",
-      "updated_at": "2026-11-03T11:26:55Z"
-    },
-    {
-      "item_id": "catalog_search_exa",
-      "version": "1.0.0",
-      "name": "Search the web with Exa",
-      "summary": "Reusable callable HTTP search for B2B research workflows.",
-      "description": "Reusable callable HTTP search for B2B research workflows. Returns the provider JSON response without a model call. Requires the provider's own credential; retrieves one response only and does not claim complete paginated coverage. Offline-validated template; live provider execution has not been tested. Configure a provider credential before running.",
-      "categories": [
-        "sales"
-      ],
-      "tags": [
-        "b2b",
-        "exa",
-        "research",
-        "search"
-      ],
-      "integrations": [],
-      "trigger_types": [
-        "manual",
-        "sub_workflow"
-      ],
-      "setup_requirements": [],
-      "includes": [],
-      "bundle_schema": "platform.workflow_bundle.v2",
-      "compatible_flow_steward": {
-        "min": "0.9.9",
-        "max": ""
-      },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/8eabd10f78042cb27212a0bb7ea99f0b05583c3d/workflows/sales/catalog_search_exa.yaml",
-      "workflow_yaml_bytes": 6029,
-      "workflow_yaml_sha256": "42db215fcd2aa00c5b93d2121f3a1762e63469cc8481b583ed6071bb4eafedf6",
-      "publication_status": "published",
-      "verification_status": "verified",
-      "added_at": "2026-11-03T11:26:55Z",
-      "updated_at": "2026-11-03T11:26:55Z"
-    },
-    {
-      "item_id": "catalog_search_tavily",
-      "version": "1.0.0",
-      "name": "Search the web with Tavily",
-      "summary": "Reusable callable HTTP search for B2B research workflows.",
-      "description": "Reusable callable HTTP search for B2B research workflows. Returns the provider JSON response without a model call. Requires the provider's own credential; retrieves one response only and does not claim complete paginated coverage. Offline-validated template; live provider execution has not been tested. Configure a provider credential before running.",
-      "categories": [
-        "sales"
-      ],
-      "tags": [
-        "b2b",
-        "research",
-        "search",
-        "tavily"
-      ],
-      "integrations": [],
-      "trigger_types": [
-        "manual",
-        "sub_workflow"
-      ],
-      "setup_requirements": [],
-      "includes": [],
-      "bundle_schema": "platform.workflow_bundle.v2",
-      "compatible_flow_steward": {
-        "min": "0.9.9",
-        "max": ""
-      },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/8eabd10f78042cb27212a0bb7ea99f0b05583c3d/workflows/sales/catalog_search_tavily.yaml",
-      "workflow_yaml_bytes": 6139,
-      "workflow_yaml_sha256": "4ff8a06b1139b54dcff3b4f46dc9f7b944b9b077dbe0f1e33c6fa3478a003899",
-      "publication_status": "published",
-      "verification_status": "verified",
-      "added_at": "2026-11-03T11:26:55Z",
-      "updated_at": "2026-11-03T11:26:55Z"
     },
     {
       "item_id": "catalog_meeting_slots",
