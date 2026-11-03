@@ -1,0 +1,243 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-03T11:18:09+00:00'
+  exported_by: admin
+  source_workflow_id: catalog_search_serpapi
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: catalog_search_serpapi
+  version: 1.0.0
+  display_name: Search Google with SerpAPI
+  description: Reusable callable HTTP search for B2B research workflows. Returns the
+    provider JSON response without a model call. Requires the provider's own credential;
+    retrieves one response only and does not claim complete paginated coverage. Offline-validated
+    template; live provider execution has not been tested. Configure a provider credential
+    before running.
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - name: query
+        type: string
+        label: Search query
+        required: true
+        description: A nonempty search query, at most 2000 characters.
+      - name: provider_credential
+        type: secret
+        label: serpapi credential
+        required: true
+        description: Configure the provider key through the workflow secret input.
+          Never place its value in the YAML.
+      expected_outputs:
+      - name: response
+        type: object
+        required: true
+        description: Provider JSON response. Search items are in response.organic_results;
+          formats differ by provider.
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+    portability:
+      import_state: draft
+  participants: []
+  tags:
+  - b2b
+  - research
+  - search
+  - serpapi
+  steps:
+  - step_id: check_query
+    step_kind: template
+    display_name: Check that a search query was supplied
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''valid'' if query|trim|length > 0 and query|length <= 2000 else
+          ''invalid'' }}'
+        format: text
+        inputs:
+        - name: query
+          type: text
+          source: state.inputs.query
+          required: true
+        result_target: state.query_check
+  - step_id: require_query
+    step_kind: if
+    display_name: require_query
+    optional: false
+    override:
+      if:
+        condition:
+          value: valid
+          operator: equals
+          selector: state.query_check
+  - step_id: search
+    step_kind: http_request
+    display_name: Search Google with SerpAPI
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://serpapi.com/search.json
+        method: GET
+        headers:
+          Accept: application/json
+        auth_ref: ''
+        auth_mode: none
+        query_params:
+          q: '{{ state.inputs.query }}'
+          engine: google
+          api_key: '{{ state.inputs.provider_credential }}'
+        body_template: ''
+        response_mode: inline
+        response_target: state.search
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        max_response_bytes: 1048576
+  - step_id: provider_error
+    step_kind: if
+    display_name: provider_error
+    optional: false
+    override:
+      if:
+        condition:
+          operator: truthy
+          selector: state.search.response_body.error
+  - step_id: return_response
+    step_kind: set_variable
+    display_name: return_response
+    optional: false
+    override:
+      set_variable:
+        value:
+          source: state.search.response_body
+        target: state.outputs.response
+  - step_id: done
+    step_kind: stop_success
+    display_name: done
+    optional: false
+    override:
+      stop_success:
+        message: The provider returned the first search response. No follow-up pages
+          were requested.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Search did not complete. Check the query, provider credential, HTTP
+          status, quota and provider error in the run details.
+  groups: []
+  for_each: []
+  execution_graph:
+    edges:
+    - rework: false
+      source:
+        id: check_query
+        kind: step
+      target:
+        id: require_query
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: check_query
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: require_query
+        kind: step
+      target:
+        id: search
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: require_query
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: search
+        kind: step
+      target:
+        id: provider_error
+        kind: step
+      outcome:
+        name: success
+    - rework: false
+      source:
+        id: search
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+    - rework: false
+      source:
+        id: provider_error
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'true'
+    - rework: false
+      source:
+        id: provider_error
+        kind: step
+      target:
+        id: return_response
+        kind: step
+      outcome:
+        name: 'false'
+    - rework: false
+      source:
+        id: return_response
+        kind: step
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+    entry:
+      id: check_query
+      kind: step
+    schema_version: 1
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow
