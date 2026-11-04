@@ -1,0 +1,3529 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-04T07:03:10+00:00'
+  exported_by: admin
+  source_workflow_id: m5_order_failsafe
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: m5_order_failsafe
+  version: 1.0.0
+  display_name: Order export protocol with a durable queue
+  description: 'Adapted protocol example: validate orders, route shipping-method decisions,
+    and call source-compatible demo order/ops HTTP endpoints. This is not a real 3PL
+    integration. Qualified with core 0.9.9 and PostgreSQL extension 1.4.0; latest
+    catalog 1.4.1 was not qualified. Required SQL setup: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/queue-schema.sql
+    . Setup and limitations: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/README.md
+    . Use a dedicated project with concurrency_cap=1, trusted immutable delivery identity/scope
+    and one active invocation per delivery. Reconcile uncertain creates manually before
+    approval. Replace demo endpoints and configure a trusted webhook adapter. Disabled
+    on import; no exactly-once or exact Make parity claim.'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - name: setup_confirmed
+        type: boolean
+        required: true
+        description: Operator has completed the linked setup guide, SQL schema, endpoint
+          review and trusted adapter configuration.
+      - name: tenant_id
+        type: string
+        required: true
+        description: Configured tenant ID; must equal the immutable host tenant scope
+          before any SQL.
+      - name: project_id
+        type: string
+        required: true
+        description: Configured dedicated project ID; must equal immutable host project
+          scope. Set project concurrency_cap=1.
+      - name: delivery_id
+        type: string
+        required: true
+        description: Immutable ID for this received event. Preserve on recovery; use
+          one active invocation per delivery. Do not use order_ref for deduplication.
+      - name: db_connection
+        type: string
+        required: true
+        description: Project-permitted PostgreSQL SQL-writer connection with the published
+          companion schema. Qualified extension version 1.4.0; requalify other versions.
+      - name: order
+        type: object
+        required: true
+        description: Source-compatible order object. Customer, address and full ordered
+          lines remain typed. A delivery ID cannot be reused with a different payload.
+      - name: poll_wait_ms
+        type: integer
+        required: true
+        description: Positive wait in milliseconds while an earlier order remains
+          unfinished; repeated polls may request native rework-budget approval.
+      - name: validation_retry_wait_ms
+        type: integer
+        required: true
+        description: Positive validation retry delay in milliseconds. Review source
+          15-minute interpretation before choosing 900000.
+      - name: mapping_retry_wait_ms
+        type: integer
+        required: true
+        description: Positive shipping-map retry delay in milliseconds. Review source
+          15-minute interpretation before choosing 900000.
+      - name: create_retry_wait_ms
+        type: integer
+        required: true
+        description: Positive create retry delay in milliseconds. Review source 30-minute
+          interpretation before choosing 1800000. Reconcile uncertain create effects.
+      expected_outputs: []
+      trigger_channels:
+      - api
+      - parent_workflow
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags:
+  - fulfillment
+  - migration
+  steps:
+  - step_id: check_setup
+    step_kind: template
+    display_name: check setup
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''valid'' if confirmed is sameas true and tenant == trusted_tenant
+          and project == trusted_project and delivery is string and 0 < delivery|length
+          <= 255 and tenant is string and tenant|length > 0 and project is string
+          and project|length > 0 and poll is integer and poll > 0 and vr is integer
+          and vr > 0 and mr is integer and mr > 0 and cr is integer and cr > 0 else
+          ''invalid'' }}'
+        format: text
+        inputs:
+        - name: trusted_tenant
+          type: json
+          source: state.tenant_id
+          required: true
+        - name: trusted_project
+          type: json
+          source: state.project_id
+          required: true
+        - name: confirmed
+          type: json
+          source: state.inputs.setup_confirmed
+          required: true
+        - name: delivery
+          type: json
+          source: state.inputs.delivery_id
+          required: true
+        - name: tenant
+          type: json
+          source: state.inputs.tenant_id
+          required: true
+        - name: project
+          type: json
+          source: state.inputs.project_id
+          required: true
+        - name: poll
+          type: json
+          source: state.inputs.poll_wait_ms
+          required: true
+        - name: vr
+          type: json
+          source: state.inputs.validation_retry_wait_ms
+          required: true
+        - name: mr
+          type: json
+          source: state.inputs.mapping_retry_wait_ms
+          required: true
+        - name: cr
+          type: json
+          source: state.inputs.create_retry_wait_ms
+          required: true
+        result_target: state.check_setup
+  - step_id: require_setup
+    step_kind: if
+    display_name: require setup
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_setup
+          operator: equals
+          value: valid
+  - step_id: initialize
+    step_kind: set_variable
+    display_name: initialize
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_contracts:
+            init_scope:
+              sql: INSERT INTO migration_order_failsafe.scope_admission(tenant_id,project_id)
+                VALUES(:tenant,:project) ON CONFLICT(tenant_id,project_id) DO NOTHING
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                required:
+                - tenant
+                - project
+            admit:
+              sql: 'INSERT INTO migration_order_failsafe.order_journal(tenant_id,project_id,event_id,payload_json)
+
+                SELECT :tenant,:project,:event,:payload::jsonb FROM (SELECT tenant_id
+                FROM migration_order_failsafe.scope_admission WHERE tenant_id=:tenant
+                AND project_id=:project FOR UPDATE) admission
+
+                ON CONFLICT(tenant_id,project_id,event_id) DO UPDATE SET event_id=excluded.event_id
+                RETURNING status,(payload_json=:payload::jsonb) AS payload_matches'
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  payload:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - payload
+                - event
+            claim:
+              sql: 'UPDATE migration_order_failsafe.order_journal SET owner_job_id=:event,status=''active''
+
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND admission_seq=(SELECT MIN(admission_seq) FROM migration_order_failsafe.order_journal
+                WHERE tenant_id=:tenant AND project_id=:project AND status!=''done'')
+
+                AND (owner_job_id IS NULL OR owner_job_id=:event) RETURNING payload_json,stage,retry_attempt,validate_response,map_response'
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            store_validation:
+              sql: UPDATE migration_order_failsafe.order_journal SET validate_response=:body::jsonb,stage='route_validate',retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING stage
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  body:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - body
+                - event
+            to_map:
+              sql: UPDATE migration_order_failsafe.order_journal SET stage='map',retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING stage
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            store_mapping:
+              sql: UPDATE migration_order_failsafe.order_journal SET map_response=:body::jsonb,stage='route_map',retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING stage
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  body:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - body
+                - event
+            to_create:
+              sql: UPDATE migration_order_failsafe.order_journal SET stage='create',retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING stage
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            retry_validate:
+              sql: UPDATE migration_order_failsafe.order_journal SET retry_attempt=retry_attempt+1,status='held'
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING retry_attempt
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            retry_map:
+              sql: UPDATE migration_order_failsafe.order_journal SET retry_attempt=retry_attempt+1,status='held'
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING retry_attempt
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            retry_create:
+              sql: UPDATE migration_order_failsafe.order_journal SET retry_attempt=retry_attempt+1,status='held'
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING retry_attempt
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            reset_budget:
+              sql: UPDATE migration_order_failsafe.order_journal SET retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING stage
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+            finish:
+              sql: UPDATE migration_order_failsafe.order_journal SET status='done',stage='done',retry_attempt=0
+                WHERE tenant_id=:tenant AND project_id=:project AND event_id=:event
+                AND owner_job_id=:event RETURNING status
+              param_schema:
+                type: object
+                properties:
+                  tenant:
+                    type: string
+                  project:
+                    type: string
+                  event:
+                    type: string
+                required:
+                - tenant
+                - project
+                - event
+          state.sql_params:
+            init_scope: {}
+            admit: {}
+            claim: {}
+            store_validation: {}
+            to_map: {}
+            store_mapping: {}
+            to_create: {}
+            retry_validate: {}
+            retry_map: {}
+            retry_create: {}
+            reset_budget: {}
+            finish: {}
+  - step_id: init_scope_params
+    step_kind: set_variable
+    display_name: init scope params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.init_scope.tenant:
+            source: state.tenant_id
+          state.sql_params.init_scope.project:
+            source: state.project_id
+  - step_id: init_scope
+    step_kind: connector
+    display_name: init scope
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.init_scope.sql
+      params: state.sql_params.init_scope
+      param_schema: state.sql_contracts.init_scope.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.init_scope
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: order_json
+    step_kind: template
+    display_name: order json
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ order|tojson }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.inputs.order
+          required: true
+        result_target: state.order_json
+  - step_id: admit_params
+    step_kind: set_variable
+    display_name: admit params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.admit.tenant:
+            source: state.tenant_id
+          state.sql_params.admit.project:
+            source: state.project_id
+          state.sql_params.admit.payload:
+            source: state.order_json
+          state.sql_params.admit.event:
+            source: state.inputs.delivery_id
+  - step_id: admit
+    step_kind: connector
+    display_name: admit
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.admit.sql
+      params: state.sql_params.admit
+      param_schema: state.sql_contracts.admit.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.admit
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: already_complete
+    step_kind: template
+    display_name: already complete
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''invalid'' if rows|length != 1 or not rows[0].payload_matches else
+          ''done'' if rows[0].status == ''done'' else ''pending'' }}'
+        format: text
+        inputs:
+        - name: rows
+          type: json
+          source: state.rows.admit
+          required: true
+        result_target: state.already_complete
+  - step_id: admission_invalid
+    step_kind: if
+    display_name: admission invalid
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.already_complete
+          operator: equals
+          value: invalid
+  - step_id: is_complete
+    step_kind: if
+    display_name: is complete
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.already_complete
+          operator: equals
+          value: done
+  - step_id: claim_params
+    step_kind: set_variable
+    display_name: claim params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.claim.tenant:
+            source: state.tenant_id
+          state.sql_params.claim.project:
+            source: state.project_id
+          state.sql_params.claim.event:
+            source: state.inputs.delivery_id
+  - step_id: claim
+    step_kind: connector
+    display_name: claim
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.claim.sql
+      params: state.sql_params.claim
+      param_schema: state.sql_contracts.claim.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.claim
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: has_claim
+    step_kind: template
+    display_name: has claim
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''yes'' if rows|length == 1 else ''no'' }}'
+        format: text
+        inputs:
+        - name: rows
+          type: json
+          source: state.rows.claim
+          required: true
+        result_target: state.has_claim
+  - step_id: claimed
+    step_kind: if
+    display_name: claimed
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.has_claim
+          operator: equals
+          value: 'yes'
+  - step_id: wait_for_head
+    step_kind: wait
+    display_name: wait for head
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      wait:
+        input_mapping:
+          duration_ms: state.inputs.poll_wait_ms
+  - step_id: restore
+    step_kind: set_variable
+    display_name: restore
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.journal:
+            source: state.rows.claim.0
+          state.order:
+            source: state.rows.claim.0.payload_json
+  - step_id: dispatch
+    step_kind: template
+    display_name: dispatch
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''review'' if j.retry_attempt > (5 if j.stage == ''create'' else
+          3) else j.stage }}'
+        format: text
+        inputs:
+        - name: j
+          type: json
+          source: state.journal
+          required: true
+        result_target: state.dispatch
+  - step_id: is_review
+    step_kind: if
+    display_name: is review
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: review
+  - step_id: is_validate
+    step_kind: if
+    display_name: is validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: validate
+  - step_id: is_route_validate
+    step_kind: if
+    display_name: is route validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: route_validate
+  - step_id: is_map
+    step_kind: if
+    display_name: is map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: map
+  - step_id: is_route_map
+    step_kind: if
+    display_name: is route map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: route_map
+  - step_id: is_create
+    step_kind: if
+    display_name: is create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.dispatch
+          operator: equals
+          value: create
+  - step_id: validate_body
+    step_kind: template
+    display_name: validate body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"order_ref":order.get("order_ref",""),"customer":order.get("customer"),"shipping_address":order.get("shipping_address"),"shipping_method":order.get("shipping_method",""),"lines":order.get("lines")}|tojson
+          }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.validate_body
+  - step_id: validate
+    step_kind: http_request
+    display_name: validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-service.invalid/orders/validate
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.validate_body }}'
+        response_mode: inline
+        response_target: state.response.validate
+        timeout_seconds: 30
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: validate_json
+    step_kind: template
+    display_name: validate json
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ result|tojson }}'
+        format: text
+        inputs:
+        - name: result
+          type: json
+          source: state.response.validate
+          required: true
+        result_target: state.validate_json
+  - step_id: store_validation_params
+    step_kind: set_variable
+    display_name: store validation params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.store_validation.tenant:
+            source: state.tenant_id
+          state.sql_params.store_validation.project:
+            source: state.project_id
+          state.sql_params.store_validation.body:
+            source: state.validate_json
+          state.sql_params.store_validation.event:
+            source: state.inputs.delivery_id
+  - step_id: store_validation
+    step_kind: connector
+    display_name: store validation
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.store_validation.sql
+      params: state.sql_params.store_validation
+      param_schema: state.sql_contracts.store_validation.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.store_validation
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: validation_invalid
+    step_kind: if
+    display_name: validation invalid
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.journal.validate_response.decision
+          operator: equals
+          value: INVALID
+  - step_id: validation_valid
+    step_kind: if
+    display_name: validation valid
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.journal.validate_response.decision
+          operator: equals
+          value: VALID
+  - step_id: invalid_alert_body
+    step_kind: template
+    display_name: invalid alert body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"topic":"order-invalid","order_ref":validation.evidence.order_ref,"reason":validation.reason,"gap_count":validation.evidence.gaps|length|string}|tojson
+          }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.invalid_alert_body
+  - step_id: invalid_alert
+    step_kind: http_request
+    display_name: invalid alert
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-alert.invalid/ops
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.invalid_alert_body }}'
+        response_mode: inline
+        response_target: state.response.invalid_alert
+        timeout_seconds: 30
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: to_map_params
+    step_kind: set_variable
+    display_name: to map params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.to_map.tenant:
+            source: state.tenant_id
+          state.sql_params.to_map.project:
+            source: state.project_id
+          state.sql_params.to_map.event:
+            source: state.inputs.delivery_id
+  - step_id: to_map
+    step_kind: connector
+    display_name: to map
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.to_map.sql
+      params: state.sql_params.to_map
+      param_schema: state.sql_contracts.to_map.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.to_map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: map_body
+    step_kind: template
+    display_name: map body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"value":order.get("shipping_method","")}|tojson }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.map_body
+  - step_id: map
+    step_kind: http_request
+    display_name: map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-service.invalid/map/shipping-method
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.map_body }}'
+        response_mode: inline
+        response_target: state.response.map
+        timeout_seconds: 30
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: mapping_json
+    step_kind: template
+    display_name: mapping json
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ result|tojson }}'
+        format: text
+        inputs:
+        - name: result
+          type: json
+          source: state.response.map
+          required: true
+        result_target: state.mapping_json
+  - step_id: store_mapping_params
+    step_kind: set_variable
+    display_name: store mapping params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.store_mapping.tenant:
+            source: state.tenant_id
+          state.sql_params.store_mapping.project:
+            source: state.project_id
+          state.sql_params.store_mapping.body:
+            source: state.mapping_json
+          state.sql_params.store_mapping.event:
+            source: state.inputs.delivery_id
+  - step_id: store_mapping
+    step_kind: connector
+    display_name: store mapping
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.store_mapping.sql
+      params: state.sql_params.store_mapping
+      param_schema: state.sql_contracts.store_mapping.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.store_mapping
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: mapping_unmapped
+    step_kind: if
+    display_name: mapping unmapped
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.journal.map_response.decision
+          operator: equals
+          value: UNMAPPED
+  - step_id: unmapped_alert_body
+    step_kind: template
+    display_name: unmapped alert body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"topic":"shipping-method-unmapped","order_ref":order.get("order_ref",""),"input_value":order.get("shipping_method",""),"reason":mapping.reason}|tojson
+          }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.unmapped_alert_body
+  - step_id: unmapped_alert
+    step_kind: http_request
+    display_name: unmapped alert
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-alert.invalid/ops
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.unmapped_alert_body }}'
+        response_mode: inline
+        response_target: state.response.unmapped_alert
+        timeout_seconds: 30
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: to_create_params
+    step_kind: set_variable
+    display_name: to create params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.to_create.tenant:
+            source: state.tenant_id
+          state.sql_params.to_create.project:
+            source: state.project_id
+          state.sql_params.to_create.event:
+            source: state.inputs.delivery_id
+  - step_id: to_create
+    step_kind: connector
+    display_name: to create
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.to_create.sql
+      params: state.sql_params.to_create
+      param_schema: state.sql_contracts.to_create.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.to_create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: create_body
+    step_kind: template
+    display_name: create body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"order_ref":order.get("order_ref",""),"mapped_method_id":mapping.method.method_id,"mapped_method_name":mapping.method.name,"lines":order.get("lines")}|tojson
+          }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.create_body
+  - step_id: create
+    step_kind: http_request
+    display_name: create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-3pl.invalid/orders
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.create_body }}'
+        response_mode: inline
+        response_target: state.response.create
+        timeout_seconds: 60
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: create_failed_alert_body
+    step_kind: template
+    display_name: create failed alert body
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ {"topic":"3pl-create-failed","order_ref":order.get("order_ref","")}|tojson
+          }}'
+        format: text
+        inputs:
+        - name: order
+          type: json
+          source: state.order
+          required: true
+        - name: validation
+          type: json
+          source: state.journal.validate_response
+          required: true
+        - name: mapping
+          type: json
+          source: state.journal.map_response
+          required: true
+        result_target: state.create_failed_alert_body
+  - step_id: create_failed_alert
+    step_kind: http_request
+    display_name: create failed alert
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-order-alert.invalid/ops
+        method: POST
+        headers:
+          Content-Type: application/json
+        body_template: '{{ state.create_failed_alert_body }}'
+        response_mode: inline
+        response_target: state.response.create_failed_alert
+        timeout_seconds: 30
+        expected_statuses:
+        - 200
+        - 201
+        - 202
+        - 203
+        - 204
+        - 205
+        - 206
+        - 207
+        - 208
+        - 209
+        - 210
+        - 211
+        - 212
+        - 213
+        - 214
+        - 215
+        - 216
+        - 217
+        - 218
+        - 219
+        - 220
+        - 221
+        - 222
+        - 223
+        - 224
+        - 225
+        - 226
+        - 227
+        - 228
+        - 229
+        - 230
+        - 231
+        - 232
+        - 233
+        - 234
+        - 235
+        - 236
+        - 237
+        - 238
+        - 239
+        - 240
+        - 241
+        - 242
+        - 243
+        - 244
+        - 245
+        - 246
+        - 247
+        - 248
+        - 249
+        - 250
+        - 251
+        - 252
+        - 253
+        - 254
+        - 255
+        - 256
+        - 257
+        - 258
+        - 259
+        - 260
+        - 261
+        - 262
+        - 263
+        - 264
+        - 265
+        - 266
+        - 267
+        - 268
+        - 269
+        - 270
+        - 271
+        - 272
+        - 273
+        - 274
+        - 275
+        - 276
+        - 277
+        - 278
+        - 279
+        - 280
+        - 281
+        - 282
+        - 283
+        - 284
+        - 285
+        - 286
+        - 287
+        - 288
+        - 289
+        - 290
+        - 291
+        - 292
+        - 293
+        - 294
+        - 295
+        - 296
+        - 297
+        - 298
+        - 299
+        max_response_bytes: 1048576
+  - step_id: retry_validate_params
+    step_kind: set_variable
+    display_name: retry validate params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.retry_validate.tenant:
+            source: state.tenant_id
+          state.sql_params.retry_validate.project:
+            source: state.project_id
+          state.sql_params.retry_validate.event:
+            source: state.inputs.delivery_id
+  - step_id: retry_validate
+    step_kind: connector
+    display_name: retry validate
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.retry_validate.sql
+      params: state.sql_params.retry_validate
+      param_schema: state.sql_contracts.retry_validate.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.retry_validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: budget_validate
+    step_kind: template
+    display_name: budget validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''retry'' if rows[0].retry_attempt <= 3 else ''review'' }}'
+        format: text
+        inputs:
+        - name: rows
+          type: json
+          source: state.rows.retry_validate
+          required: true
+        result_target: state.budget_validate
+  - step_id: can_retry_validate
+    step_kind: if
+    display_name: can retry validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.budget_validate
+          operator: equals
+          value: retry
+  - step_id: wait_validate
+    step_kind: wait
+    display_name: wait validate
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      wait:
+        input_mapping:
+          duration_ms: state.inputs.validation_retry_wait_ms
+  - step_id: retry_map_params
+    step_kind: set_variable
+    display_name: retry map params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.retry_map.tenant:
+            source: state.tenant_id
+          state.sql_params.retry_map.project:
+            source: state.project_id
+          state.sql_params.retry_map.event:
+            source: state.inputs.delivery_id
+  - step_id: retry_map
+    step_kind: connector
+    display_name: retry map
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.retry_map.sql
+      params: state.sql_params.retry_map
+      param_schema: state.sql_contracts.retry_map.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.retry_map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: budget_map
+    step_kind: template
+    display_name: budget map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''retry'' if rows[0].retry_attempt <= 3 else ''review'' }}'
+        format: text
+        inputs:
+        - name: rows
+          type: json
+          source: state.rows.retry_map
+          required: true
+        result_target: state.budget_map
+  - step_id: can_retry_map
+    step_kind: if
+    display_name: can retry map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.budget_map
+          operator: equals
+          value: retry
+  - step_id: wait_map
+    step_kind: wait
+    display_name: wait map
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      wait:
+        input_mapping:
+          duration_ms: state.inputs.mapping_retry_wait_ms
+  - step_id: retry_create_params
+    step_kind: set_variable
+    display_name: retry create params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.retry_create.tenant:
+            source: state.tenant_id
+          state.sql_params.retry_create.project:
+            source: state.project_id
+          state.sql_params.retry_create.event:
+            source: state.inputs.delivery_id
+  - step_id: retry_create
+    step_kind: connector
+    display_name: retry create
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.retry_create.sql
+      params: state.sql_params.retry_create
+      param_schema: state.sql_contracts.retry_create.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.retry_create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: budget_create
+    step_kind: template
+    display_name: budget create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''retry'' if rows[0].retry_attempt <= 5 else ''review'' }}'
+        format: text
+        inputs:
+        - name: rows
+          type: json
+          source: state.rows.retry_create
+          required: true
+        result_target: state.budget_create
+  - step_id: can_retry_create
+    step_kind: if
+    display_name: can retry create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.budget_create
+          operator: equals
+          value: retry
+  - step_id: wait_create
+    step_kind: wait
+    display_name: wait create
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      wait:
+        input_mapping:
+          duration_ms: state.inputs.create_retry_wait_ms
+  - step_id: recover
+    step_kind: approval
+    display_name: recover
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      approval:
+        message: An order is held after retry exhaustion. Reconcile any uncertain
+          external create before approval. Approve resets the retry budget for this
+          held stage. Reject keeps the order held and later orders blocked.
+        show_outputs:
+        - state.order
+        - state.journal
+  - step_id: reset_budget_params
+    step_kind: set_variable
+    display_name: reset budget params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.reset_budget.tenant:
+            source: state.tenant_id
+          state.sql_params.reset_budget.project:
+            source: state.project_id
+          state.sql_params.reset_budget.event:
+            source: state.inputs.delivery_id
+  - step_id: reset_budget
+    step_kind: connector
+    display_name: reset budget
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.reset_budget.sql
+      params: state.sql_params.reset_budget
+      param_schema: state.sql_contracts.reset_budget.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.reset_budget
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: finish_params
+    step_kind: set_variable
+    display_name: finish params
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.sql_params.finish.tenant:
+            source: state.tenant_id
+          state.sql_params.finish.project:
+            source: state.project_id
+          state.sql_params.finish.event:
+            source: state.inputs.delivery_id
+  - step_id: finish
+    step_kind: connector
+    display_name: finish
+    connector_id: extension.flowsteward.data-connector-mcp-toolbox-postgres
+    input_mapping_jsonb:
+      connection_ref: state.inputs.db_connection
+      sql: state.sql_contracts.finish.sql
+      params: state.sql_params.finish
+      param_schema: state.sql_contracts.finish.param_schema
+    output_mapping_jsonb:
+      rows: state.rows.finish
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      connector:
+        operation_id: execute_write
+  - step_id: return_to_dispatch
+    step_kind: if
+    display_name: return to dispatch
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.inputs.setup_confirmed
+          operator: equals
+          value: true
+  - step_id: completed
+    step_kind: stop_success
+    display_name: completed
+    optional: false
+    override:
+      stop_success:
+        message: This order reached a source terminal route; journal released the
+          next order.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Order remains held if admitted. Reconcile journal and uncertain effects
+          before recovery; later orders must not overtake.
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      id: check_setup
+      kind: step
+    edges:
+    - source:
+        id: check_setup
+        kind: step
+      target:
+        id: require_setup
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: initialize
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: init_scope_params
+        kind: step
+      target:
+        id: init_scope
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: initialize
+        kind: step
+      target:
+        id: init_scope_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: init_scope
+        kind: step
+      target:
+        id: order_json
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: admit_params
+        kind: step
+      target:
+        id: admit
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: order_json
+        kind: step
+      target:
+        id: admit_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: admit
+        kind: step
+      target:
+        id: already_complete
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: already_complete
+        kind: step
+      target:
+        id: admission_invalid
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: admission_invalid
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: admission_invalid
+        kind: step
+      target:
+        id: is_complete
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_complete
+        kind: step
+      target:
+        id: completed
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: claim_params
+        kind: step
+      target:
+        id: claim
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: is_complete
+        kind: step
+      target:
+        id: claim_params
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: claim
+        kind: step
+      target:
+        id: has_claim
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: has_claim
+        kind: step
+      target:
+        id: claimed
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: claimed
+        kind: step
+      target:
+        id: wait_for_head
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: wait_for_head
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: claimed
+        kind: step
+      target:
+        id: restore
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: restore
+        kind: step
+      target:
+        id: dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: dispatch
+        kind: step
+      target:
+        id: is_review
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: is_review
+        kind: step
+      target:
+        id: recover
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_review
+        kind: step
+      target:
+        id: is_validate
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_validate
+        kind: step
+      target:
+        id: validate_body
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_validate
+        kind: step
+      target:
+        id: is_route_validate
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_route_validate
+        kind: step
+      target:
+        id: validation_invalid
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_route_validate
+        kind: step
+      target:
+        id: is_map
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_map
+        kind: step
+      target:
+        id: map_body
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_map
+        kind: step
+      target:
+        id: is_route_map
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_route_map
+        kind: step
+      target:
+        id: mapping_unmapped
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_route_map
+        kind: step
+      target:
+        id: is_create
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: is_create
+        kind: step
+      target:
+        id: create_body
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: is_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: validate_body
+        kind: step
+      target:
+        id: validate
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: validate
+        kind: step
+      target:
+        id: validate_json
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: store_validation_params
+        kind: step
+      target:
+        id: store_validation
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: validate_json
+        kind: step
+      target:
+        id: store_validation_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: store_validation
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: validation_invalid
+        kind: step
+      target:
+        id: invalid_alert_body
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: validation_invalid
+        kind: step
+      target:
+        id: validation_valid
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: validation_valid
+        kind: step
+      target:
+        id: to_map_params
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: validation_valid
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: invalid_alert_body
+        kind: step
+      target:
+        id: invalid_alert
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: invalid_alert
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: invalid_alert
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_map_params
+        kind: step
+      target:
+        id: to_map
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: to_map
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map_body
+        kind: step
+      target:
+        id: map
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map
+        kind: step
+      target:
+        id: mapping_json
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: store_mapping_params
+        kind: step
+      target:
+        id: store_mapping
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: mapping_json
+        kind: step
+      target:
+        id: store_mapping_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: store_mapping
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: mapping_unmapped
+        kind: step
+      target:
+        id: unmapped_alert_body
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: mapping_unmapped
+        kind: step
+      target:
+        id: to_create_params
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: unmapped_alert_body
+        kind: step
+      target:
+        id: unmapped_alert
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: unmapped_alert
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: unmapped_alert
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_create_params
+        kind: step
+      target:
+        id: to_create
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: to_create
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: create_body
+        kind: step
+      target:
+        id: create
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: create
+        kind: step
+      target:
+        id: finish_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: create
+        kind: step
+      target:
+        id: create_failed_alert_body
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: create_failed_alert_body
+        kind: step
+      target:
+        id: create_failed_alert
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: retry_validate_params
+        kind: step
+      target:
+        id: retry_validate
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: validate
+        kind: step
+      target:
+        id: retry_validate_params
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_validate
+        kind: step
+      target:
+        id: budget_validate
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: budget_validate
+        kind: step
+      target:
+        id: can_retry_validate
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: can_retry_validate
+        kind: step
+      target:
+        id: recover
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: can_retry_validate
+        kind: step
+      target:
+        id: wait_validate
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: wait_validate
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: retry_map_params
+        kind: step
+      target:
+        id: retry_map
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map
+        kind: step
+      target:
+        id: retry_map_params
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_map
+        kind: step
+      target:
+        id: budget_map
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: budget_map
+        kind: step
+      target:
+        id: can_retry_map
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: can_retry_map
+        kind: step
+      target:
+        id: recover
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: can_retry_map
+        kind: step
+      target:
+        id: wait_map
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: wait_map
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: retry_create_params
+        kind: step
+      target:
+        id: retry_create
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: create_failed_alert
+        kind: step
+      target:
+        id: retry_create_params
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: retry_create
+        kind: step
+      target:
+        id: budget_create
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: budget_create
+        kind: step
+      target:
+        id: can_retry_create
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: can_retry_create
+        kind: step
+      target:
+        id: recover
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: can_retry_create
+        kind: step
+      target:
+        id: wait_create
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: wait_create
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: recover
+        kind: step
+      target:
+        id: reset_budget_params
+        kind: step
+      outcome:
+        name: approved
+      rework: false
+    - source:
+        id: recover
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: rejected
+      rework: false
+    - source:
+        id: reset_budget_params
+        kind: step
+      target:
+        id: reset_budget
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: reset_budget
+        kind: step
+      target:
+        id: return_to_dispatch
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: finish_params
+        kind: step
+      target:
+        id: finish
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: finish
+        kind: step
+      target:
+        id: completed
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: return_to_dispatch
+        kind: step
+      target:
+        id: claim_params
+        kind: step
+      outcome:
+        name: 'true'
+      rework: true
+    - source:
+        id: return_to_dispatch
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: check_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: initialize
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: init_scope_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: init_scope
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: order_json
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: admit_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: admit
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: already_complete
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: admission_invalid
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_complete
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: claim_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: claim
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: has_claim
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: claimed
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: wait_for_head
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: restore
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: dispatch
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_review
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_route_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_route_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: is_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: validate_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: validate_json
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: store_validation_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: store_validation
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: validation_invalid
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: validation_valid
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: invalid_alert_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_map_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: map_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: mapping_json
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: store_mapping_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: store_mapping
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: mapping_unmapped
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: unmapped_alert_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_create_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: to_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: create_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: create_failed_alert_body
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: create_failed_alert
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_validate_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: budget_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: can_retry_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: wait_validate
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_map_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: budget_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: can_retry_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: wait_map
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_create_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: retry_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: budget_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: can_retry_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: wait_create
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: recover
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: reset_budget_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: reset_budget
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: finish_params
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: finish
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: return_to_dispatch
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.data-connector-mcp-toolbox-postgres
+    display_name: flowsteward.data-connector-mcp-toolbox-postgres
+    required: true
+    sources:
+    - init_scope.connector_id
+    - admit.connector_id
+    - claim.connector_id
+    - store_validation.connector_id
+    - to_map.connector_id
+    - store_mapping.connector_id
+    - to_create.connector_id
+    - retry_validate.connector_id
+    - retry_map.connector_id
+    - retry_create.connector_id
+    - reset_budget.connector_id
+    - finish.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.data-connector-mcp-toolbox-postgres
+      reason: connector_install_id_missing
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

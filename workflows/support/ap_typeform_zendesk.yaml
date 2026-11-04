@@ -1,0 +1,798 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-04T07:01:41+00:00'
+  exported_by: admin
+  source_workflow_id: ap_typeform_zendesk
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: ap_typeform_zendesk
+  version: 1.0.0
+  display_name: Create Zendesk tickets from new Typeform responses
+  description: 'Create private Zendesk tickets from trusted Typeform response payloads.
+    Disabled unbound callable template, independently authored from the documented
+    intake pattern. Internal existing Zendesk API-token profile only: configure HTTPS
+    subdomain and project secrets zendesk_username (email/token) and zendesk_api_token;
+    auth_ref contains secret names, never key values. Requires dedicated project retry_max_attempts=0
+    for immediate requester lookup-error fallback. Supply destination organization_id
+    and expected_form_id. Answer positions are body text 0, requester name text 1,
+    email 2. Configure a trusted verified Typeform event adapter separately; this
+    template creates no subscription or OAuth flow. Offline fixture qualification
+    only. Setup and adaptation limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/ap_typeform_zendesk/README.md'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - name: setup_confirmed
+        type: boolean
+        required: true
+        description: Operator confirms internal-use token setup, literal HTTPS host
+          and organization access. Also confirms dedicated project policy retry_max_attempts=0;
+          the flag itself does not set policy.
+      - name: verified_event_adapter_confirmed
+        type: boolean
+        required: true
+        description: Trusted caller only; this flag is not webhook signature verification.
+      - name: event
+        type: object
+        required: true
+        description: 'Trusted normalized Typeform submission: form_id and ordered
+          answers. Raw webhook form_response must be unwrapped after verification.'
+      - name: organization_id
+        type: integer
+        required: true
+        description: Positive destination Zendesk organization ID, explicitly selected
+          for this project.
+      - name: expected_form_id
+        type: string
+        required: true
+        description: Destination Typeform form ID whose verified submissions this
+          workflow accepts.
+      expected_outputs:
+      - name: ticket_id
+        type: integer
+        required: true
+      - name: response
+        type: object
+        required: true
+      trigger_channels:
+      - api
+      - parent_workflow
+    portability:
+      import_state: draft
+    participants: []
+  participants: []
+  tags:
+  - support
+  - typeform
+  - zendesk
+  steps:
+  - step_id: check_setup
+    step_kind: template
+    display_name: check setup
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''valid'' if setup is sameas true and adapter is sameas true and
+          organization_id is integer and organization_id > 0 and expected_form_id
+          is string and 0 < expected_form_id|trim|length <= 255 else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: setup
+          type: json
+          source: state.inputs.setup_confirmed
+          required: true
+        - name: adapter
+          type: json
+          source: state.inputs.verified_event_adapter_confirmed
+          required: true
+        - name: organization_id
+          type: json
+          source: state.inputs.organization_id
+          required: true
+        - name: expected_form_id
+          type: text
+          source: state.inputs.expected_form_id
+          required: true
+        result_target: state.setup_check
+  - step_id: require_setup
+    step_kind: if
+    display_name: require setup
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.setup_check
+          operator: equals
+          value: valid
+  - step_id: check_event
+    step_kind: template
+    display_name: check event
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{%- set ns = namespace(valid=false) -%}
+
+          {%- if event is mapping and event.get(''form_id'') == expected_form_id and
+          event.get(''answers'') is sequence and event.answers is not string and event.answers
+          is not mapping and 3 <= event.answers|length <= 100 -%}
+
+          {%- set a = event.answers -%}
+
+          {%- if a[0] is mapping and a[1] is mapping and a[2] is mapping and a[0].get(''text'')
+          is string and a[1].get(''text'') is string and a[2].get(''email'') is string
+          -%}
+
+          {%- if a[0].text|length <= 10000 and a[1].text|length <= 255 and 0 < a[2].email|trim|length
+          <= 255 and ''@'' in a[2].email and ''\n'' not in a[2].email and ''\r'' not
+          in a[2].email -%}{%- set ns.valid = true -%}{%- endif -%}
+
+          {%- endif -%}{%- endif -%}
+
+          {{- ''valid'' if ns.valid else ''invalid'' -}}'
+        format: text
+        inputs:
+        - name: event
+          type: json
+          source: state.inputs.event
+          required: true
+        - name: expected_form_id
+          type: text
+          source: state.inputs.expected_form_id
+          required: true
+        result_target: state.event_check
+  - step_id: require_event
+    step_kind: if
+    display_name: require event
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.event_check
+          operator: equals
+          value: valid
+  - step_id: format_comment
+    step_kind: template
+    display_name: format comment
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: Ticket from {{ answer }}
+        format: text
+        inputs:
+        - name: answer
+          type: text
+          source: state.inputs.event.answers.0.text
+          required: true
+        result_target: state.comment_body
+  - step_id: format_requester_name
+    step_kind: template
+    display_name: format requester name
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ name if name else email }}'
+        format: text
+        inputs:
+        - name: name
+          type: text
+          source: state.inputs.event.answers.1.text
+          required: true
+        - name: email
+          type: text
+          source: state.inputs.event.answers.2.email
+          required: true
+        result_target: state.requester_name
+  - step_id: initialize_payload
+    step_kind: set_variable
+    display_name: initialize payload
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.payload:
+            ticket:
+              subject: New submission
+              comment:
+                public: false
+              tags: []
+  - step_id: map_comment
+    step_kind: set_variable
+    display_name: map comment
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.payload.ticket.comment.body:
+            source: state.comment_body
+          state.payload.ticket.organization_id:
+            source: state.inputs.organization_id
+  - step_id: find_requester
+    step_kind: http_request
+    display_name: find requester
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-zendesk-subdomain.invalid/api/v2/users/search.json
+        method: GET
+        headers:
+          Accept: application/json
+        auth_mode: basic
+        auth_ref: zendesk_username:zendesk_api_token
+        query_params:
+          query: email:{{ state.inputs.event.answers.2.email }}
+        body_template: null
+        response_mode: inline
+        response_target: state.requester_search
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        max_response_bytes: 1048576
+  - step_id: check_search_response
+    step_kind: template
+    display_name: check search response
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{%- set ns = namespace(valid=false) -%}
+
+          {%- if response is mapping and response.get(''users'') is sequence and response.users
+          is not string and response.users is not mapping and not response.get(''error'')
+          -%}
+
+          {%- if response.users|length == 0 -%}{%- set ns.valid = true -%}
+
+          {%- elif response.users[0] is mapping and response.users[0].get(''id'')
+          is integer and response.users[0].id > 0 -%}{%- set ns.valid = true -%}{%-
+          endif -%}
+
+          {%- endif -%}{{- ''valid'' if ns.valid else ''invalid'' -}}'
+        format: text
+        inputs:
+        - name: response
+          type: json
+          source: state.requester_search
+          required: true
+        result_target: state.search_check
+  - step_id: require_search_response
+    step_kind: if
+    display_name: require search response
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.search_check
+          operator: equals
+          value: valid
+  - step_id: requester_found
+    step_kind: if
+    display_name: requester found
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.requester_search.users
+          operator: truthy
+  - step_id: map_existing_requester
+    step_kind: set_variable
+    display_name: map existing requester
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.payload.ticket.requester_id:
+            source: state.requester_search.users.0.id
+  - step_id: map_new_requester
+    step_kind: set_variable
+    display_name: map new requester
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.payload.ticket.requester.email:
+            source: state.inputs.event.answers.2.email
+          state.payload.ticket.requester.name:
+            source: state.requester_name
+  - step_id: create_ticket
+    step_kind: http_request
+    display_name: create ticket
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      http_request:
+        url: https://configure-zendesk-subdomain.invalid/api/v2/tickets.json
+        method: POST
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+        auth_mode: basic
+        auth_ref: zendesk_username:zendesk_api_token
+        query_params: {}
+        body_template: '{{ state.payload }}'
+        response_mode: inline
+        response_target: state.created
+        timeout_seconds: 45
+        expected_statuses:
+        - 201
+        max_response_bytes: 1048576
+  - step_id: check_created_ticket
+    step_kind: template
+    display_name: check created ticket
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      template:
+        text: '{{ ''valid'' if response is mapping and response.get(''ticket'') is
+          mapping and response.ticket.get(''id'') is integer and response.ticket.id
+          > 0 and not response.get(''error'') else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: response
+          type: json
+          source: state.created
+          required: true
+        result_target: state.created_check
+  - step_id: require_created_ticket
+    step_kind: if
+    display_name: require created ticket
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.created_check
+          operator: equals
+          value: valid
+  - step_id: return_ticket
+    step_kind: set_variable
+    display_name: return ticket
+    error_policy:
+      on_error: route_to_step
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.outputs.ticket_id:
+            source: state.created.ticket.id
+          state.outputs.response:
+            source: state.created
+  - step_id: done
+    step_kind: stop_success
+    display_name: done
+    optional: false
+    override:
+      stop_success:
+        message: Zendesk returned HTTP 201 and a positive ticket ID.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Submission or Zendesk contract failed. A failed create can have an
+          uncertain external effect; reconcile before retrying.
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      id: check_setup
+      kind: step
+    edges:
+    - source:
+        id: check_setup
+        kind: step
+      target:
+        id: require_setup
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: check_event
+        kind: step
+      target:
+        id: require_event
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: format_comment
+        kind: step
+      target:
+        id: format_requester_name
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: format_requester_name
+        kind: step
+      target:
+        id: initialize_payload
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: initialize_payload
+        kind: step
+      target:
+        id: map_comment
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map_comment
+        kind: step
+      target:
+        id: find_requester
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: find_requester
+        kind: step
+      target:
+        id: check_search_response
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: check_search_response
+        kind: step
+      target:
+        id: require_search_response
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map_existing_requester
+        kind: step
+      target:
+        id: create_ticket
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: map_new_requester
+        kind: step
+      target:
+        id: create_ticket
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: create_ticket
+        kind: step
+      target:
+        id: check_created_ticket
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: check_created_ticket
+        kind: step
+      target:
+        id: require_created_ticket
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: return_ticket
+        kind: step
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: check_event
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: require_event
+        kind: step
+      target:
+        id: format_comment
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: require_event
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: require_search_response
+        kind: step
+      target:
+        id: requester_found
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: require_search_response
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: requester_found
+        kind: step
+      target:
+        id: map_existing_requester
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: requester_found
+        kind: step
+      target:
+        id: map_new_requester
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: require_created_ticket
+        kind: step
+      target:
+        id: return_ticket
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: require_created_ticket
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: check_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: require_setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: check_event
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: require_event
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: format_comment
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: format_requester_name
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: initialize_payload
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: map_comment
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: find_requester
+        kind: step
+      target:
+        id: map_new_requester
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: check_search_response
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: require_search_response
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: requester_found
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: map_existing_requester
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: map_new_requester
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: create_ticket
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: check_created_ticket
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: require_created_ticket
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: return_ticket
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+dependencies:
+  agents: []
+  skills: []
+  tools: []
+  child_workflows: []
+  published_blocks: []
+  extensions: []
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

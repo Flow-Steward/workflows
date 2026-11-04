@@ -1,0 +1,429 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  exported_at: '2026-11-04T07:08:41+00:00'
+  exported_by: admin
+  source_workflow_id: make_payment_fulfillment_m3
+  portability_kind: workflow_bundle
+  flow_steward_version: 0.9.9
+  triggers: []
+workflows:
+- workflow_id: make_payment_fulfillment_m3
+  version: 1.0.0
+  display_name: Notify and fulfill trusted Stripe charge events
+  description: 'Notify a Telegram channel about a trusted charge and, for exact succeeded
+    status, create a Google Drive folder and send a neutral customer email. Disabled
+    unbound callable adaptation of a Make payment scenario: sequential Telegram, conditional
+    Drive, conditional SMTP; raw amount minor units preserved. Source branded welcome
+    email replaced with a generic confirmation, HTML escaping preserved. Configure
+    Telegram 1.3.2 and SMTP 0.3.1 connections and map the Google Drive create_file
+    MCP dependency using its official documented folder schema. Configure trusted
+    Stripe event admission separately. No subscription, replay ledger, folder sharing,
+    compensation, automatic write retry or IMAP Sent-folder copy is included. Real
+    OAuth/provider responses remain untested. Setup, source attribution and limits:
+    https://github.com/Flow-Steward/workflows/blob/main/docs/templates/make_payment_fulfillment_m3/README.md'
+  trigger: {}
+  settings:
+    callable:
+      enabled: true
+      input_mode: json_schema
+      strict_inputs: true
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+      input_schema:
+        type: object
+        properties:
+          setup_confirmed:
+            type: boolean
+          verified_event_adapter_confirmed:
+            type: boolean
+          telegram_connection_ref:
+            type: string
+            minLength: 1
+          telegram_channel_id:
+            type: string
+            minLength: 1
+          parent_folder_id:
+            type: string
+            minLength: 1
+          smtp_connection_ref:
+            type: string
+            minLength: 1
+          event:
+            type: object
+            properties:
+              event_id:
+                type: string
+              event_type:
+                type: string
+              object:
+                type: object
+                properties:
+                  object:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  status:
+                    type: string
+                  billing_details:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      email:
+                        type: string
+                    required:
+                    - name
+                    - email
+                    additionalProperties: true
+                required:
+                - object
+                - amount
+                - currency
+                - status
+                - billing_details
+                additionalProperties: true
+            required:
+            - object
+            additionalProperties: true
+        required:
+        - setup_confirmed
+        - verified_event_adapter_confirmed
+        - telegram_connection_ref
+        - telegram_channel_id
+        - parent_folder_id
+        - smtp_connection_ref
+        - event
+        additionalProperties: false
+  participants: []
+  tags:
+  - migration
+  - make
+  - disabled
+  - business-equivalent
+  steps:
+  - step_id: setup_guard
+    step_kind: if
+    override:
+      if:
+        condition: state.inputs.setup_confirmed == true
+  - step_id: trusted_event_guard
+    step_kind: if
+    override:
+      if:
+        condition: state.inputs.verified_event_adapter_confirmed == true
+  - step_id: telegram_body
+    step_kind: template
+    override:
+      template:
+        text: New <b>{{ c.object|e }}</b> from <b>{{ c.billing_details.name|e }}</b>
+          for <b>{{ c.amount }} {{ c.currency|e }}</b> with status <b>{{ c.status|e
+          }}</b>
+        format: text
+        inputs:
+        - name: c
+          type: object
+          required: true
+          source: state.inputs.event.object
+        result_target: state.telegram_body
+  - step_id: notify_telegram
+    step_kind: connector
+    connector_id: extension.flowsteward.telegram
+    input_mapping_jsonb:
+      connection_ref: state.inputs.telegram_connection_ref
+      channel_id: state.inputs.telegram_channel_id
+      text: state.telegram_body
+      format: literal:html
+      disable_notification: false
+      disable_web_page_preview: false
+    output_mapping_jsonb:
+      delivered: state.telegram_delivered
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_message
+        extension_id: flowsteward.telegram
+  - step_id: telegram_accepted
+    step_kind: if
+    override:
+      if:
+        condition: state.telegram_delivered == true
+  - step_id: drive_status_filter
+    step_kind: if
+    override:
+      if:
+        condition: state.inputs.event.object.status == 'succeeded'
+  - step_id: create_drive_folder
+    step_kind: connector
+    connector_id: connector.m3_drive_folder_create_template
+    input_mapping_jsonb:
+      title: state.inputs.event.object.billing_details.name
+      parentId: state.inputs.parent_folder_id
+      contentMimeType: literal:application/vnd.google-apps.folder
+      disableConversionToGoogleType: true
+    error_policy:
+      on_error: route_to_step
+    override:
+      add_tools:
+      - connector.m3_drive_folder_create_template
+  - step_id: email_status_filter
+    step_kind: if
+    override:
+      if:
+        condition: state.inputs.event.object.status == 'succeeded'
+  - step_id: email_body
+    step_kind: template
+    override:
+      template:
+        text: <html><body><p>Hello {{ c.billing_details.name|e }},</p><p>Thank you
+          for your payment. Our team will follow up with the next steps.</p></body></html>
+        format: text
+        inputs:
+        - name: c
+          type: object
+          required: true
+          source: state.inputs.event.object
+        result_target: state.email_body
+  - step_id: send_welcome_email
+    step_kind: connector
+    connector_id: extension.flowsteward.outgoing-email
+    input_mapping_jsonb:
+      connection_ref: state.inputs.smtp_connection_ref
+      to: state.inputs.event.object.billing_details.email
+      subject: literal:Payment received
+      body_html: state.email_body
+    output_mapping_jsonb:
+      delivered: state.email_delivered
+    error_policy:
+      on_error: route_to_step
+    override:
+      connector:
+        operation_id: send_email
+        extension_id: flowsteward.outgoing-email
+  - step_id: email_accepted
+    step_kind: if
+    override:
+      if:
+        condition: state.email_delivered == true
+  - step_id: failed
+    step_kind: stop_fail
+    override:
+      stop_fail:
+        message: Setup, admission or provider failure. Earlier accepted Telegram/folder
+          effects remain. Reconcile uncertain writes before retry; no replay ledger
+          or compensation.
+  - step_id: done
+    step_kind: stop_success
+    override:
+      stop_success:
+        message: Source-ordered supplied-event routes completed. Non-succeeded charges
+          only notify Telegram. No sent-folder archive or ingress acknowledgment performed.
+  groups: []
+  for_each: []
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: setup_guard
+    edges:
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: trusted_event_guard
+    - source:
+        kind: step
+        id: setup_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: trusted_event_guard
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: telegram_body
+    - source:
+        kind: step
+        id: trusted_event_guard
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: telegram_accepted
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: drive_status_filter
+    - source:
+        kind: step
+        id: telegram_accepted
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: email_accepted
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: done
+    - source:
+        kind: step
+        id: email_accepted
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: telegram_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: notify_telegram
+    - source:
+        kind: step
+        id: notify_telegram
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: telegram_accepted
+    - source:
+        kind: step
+        id: create_drive_folder
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: email_status_filter
+    - source:
+        kind: step
+        id: email_body
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: send_welcome_email
+    - source:
+        kind: step
+        id: send_welcome_email
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: email_accepted
+    - source:
+        kind: step
+        id: drive_status_filter
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: create_drive_folder
+    - source:
+        kind: step
+        id: drive_status_filter
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: email_status_filter
+    - source:
+        kind: step
+        id: email_status_filter
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: email_body
+    - source:
+        kind: step
+        id: email_status_filter
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+    - source:
+        kind: step
+        id: notify_telegram
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: create_drive_folder
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+    - source:
+        kind: step
+        id: send_welcome_email
+      outcome:
+        name: error
+      target:
+        kind: step
+        id: failed
+dependencies:
+  agents: []
+  skills: []
+  tools:
+  - tool_id: connector.m3_drive_folder_create_template
+    display_name: connector.m3_drive_folder_create_template
+    required: true
+    sources:
+    - create_drive_folder.override
+  child_workflows: []
+  published_blocks: []
+  extensions:
+  - install_id: flowsteward.outgoing-email
+    display_name: flowsteward.outgoing-email
+    required: true
+    sources:
+    - send_welcome_email.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.outgoing-email
+      reason: connector_install_id_missing
+  - install_id: flowsteward.telegram
+    display_name: flowsteward.telegram
+    required: true
+    sources:
+    - notify_telegram.connector_id
+    metadata:
+      dependency_kind: extension_install
+      extension_id: flowsteward.telegram
+      reason: connector_install_id_missing
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

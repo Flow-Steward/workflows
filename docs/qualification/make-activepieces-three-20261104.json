@@ -1,0 +1,1166 @@
+{
+  "schema_version": "workflow_offline_publication_qualification/v1",
+  "core_commit": "21601831d5f816e94f7ba2135585715f96f80316",
+  "main_cases": 86,
+  "postgres_restart_cases": 1,
+  "queue_followup_graph_records": 4,
+  "provider_business_api_calls": 0,
+  "live_provider_verified": false,
+  "import_save_performed": false,
+  "publication_profile": "disabled_unbound_adapted_templates",
+  "popularity_verified": false,
+  "workflow_results": [
+    {
+      "candidate": "ap_typeform_zendesk",
+      "catalog_path": "workflows/support/ap_typeform_zendesk.yaml",
+      "sha256": "4e3495289968327fae58735768c0b15de6ce466d2076a3add050710ab4ce14b5",
+      "cases": [
+        {
+          "case": "existing-requester",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "new-requester",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-401-source-fallback",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-429-source-fallback",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-503-source-fallback",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "empty-answers",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "two-answers",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "wrong-answers-shape",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "too-many-answers",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "answer-item-not-object",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "missing-email",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "wrong-email-type",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "email-header-injection",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "blank-email",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "email-no-at",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "oversized-comment",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "wrong-comment-type",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "oversized-name",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "unconfirmed-setup",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "unverified-event-adapter",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "wrong-form",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "empty-name-source-email-default",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "literal-injection-no-evaluation",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "outputs": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-401",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-403",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-429",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-500",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-503",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-200",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-status-302",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-invalid-json",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-html-body",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-root-array",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-null",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-ticket-array",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-missing-id",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-zero-id",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-boolean-id",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-string-id",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-response-too-large",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "create-read-timeout",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-root-array",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-users-object",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "lookup-zero-id",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "missing-project-username",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        },
+        {
+          "case": "missing-project-token",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "http_attempts": true,
+            "effect_order": true,
+            "create_ticket_attempts": true,
+            "wire_checks": true
+          },
+          "passed": true
+        }
+      ]
+    },
+    {
+      "candidate": "m3_payment_fulfillment",
+      "catalog_path": "workflows/finance/make_payment_fulfillment_m3.yaml",
+      "sha256": "314b4290a68dfc1b5a3a6c81003883dc6b667855e220600d158d7540c6adeaeb",
+      "cases": [
+        {
+          "case": "succeeded-full-source-order",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "status-failed",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "status-pending",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "status-Succeeded",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "status-succeeded-trailing-space",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "status-empty",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "raw-minor-units-0",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "telegram_text": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "raw-minor-units--125",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "telegram_text": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "raw-minor-units-9007199254740991",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "telegram_text": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "html-sensitive-billing-name",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "folder_title": true,
+            "telegram_text": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "telegram-rejection-stops-all-following-effects",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "drive-rejection-preserves-telegram-stops-email",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "smtp-rejection-preserves-telegram-and-folder",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "invalid-recipient-retains-earlier-source-effects",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "setup-unconfirmed",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "unverified-stripe-admission",
+          "observed_status": "failed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "missing-charge-object",
+          "observed_status": "input_rejected",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "amount-not-number",
+          "observed_status": "input_rejected",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "billing-details-missing",
+          "observed_status": "input_rejected",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "effect_order": true
+          },
+          "passed": true
+        },
+        {
+          "case": "event-type-not-added-filter",
+          "observed_status": "completed",
+          "assertions": {
+            "status": true,
+            "smtp_attempts": true,
+            "email_body": true,
+            "model_calls": true,
+            "smtp_subjects": true,
+            "email_body_absent": true,
+            "wire_checks": true,
+            "telegram_attempts": true,
+            "drive_folder_attempts": true,
+            "mcp_arguments": true,
+            "effect_order": true
+          },
+          "passed": true
+        }
+      ]
+    },
+    {
+      "candidate": "m5_order_failsafe",
+      "catalog_path": "workflows/operations/m5_order_failsafe.yaml",
+      "sha256": "77976f38026e3d487fef259c4401f36e148f432b8d5676719dbb6b088a35f48b",
+      "native_postgres_release": "1.4.0",
+      "latest_catalog_postgres_release_qualified": false,
+      "cases": [
+        {
+          "case": "cross_scope_rejected",
+          "observed_status": "failed",
+          "passed": true
+        },
+        {
+          "case": "valid",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "invalid",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "invalid_alert_down",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "unmapped",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "unmapped_alert_down",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "unknown_validate",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "validation_retry",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "create_retry",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "create_alert_down",
+          "observed_status": "failed",
+          "passed": true
+        },
+        {
+          "case": "validation_exhausted",
+          "observed_status": "awaiting_approval",
+          "passed": true
+        },
+        {
+          "case": "recovery_rejected",
+          "observed_status": "failed",
+          "passed": true
+        },
+        {
+          "case": "recovery_approved",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "delivery_original",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "delivery_payload_collision",
+          "observed_status": "failed",
+          "passed": true
+        },
+        {
+          "case": "mapping_retry",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "unknown_mapping_decision",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "create_exhausted",
+          "observed_status": "awaiting_approval",
+          "passed": true
+        },
+        {
+          "case": "held_head",
+          "observed_status": "awaiting_approval",
+          "passed": true
+        },
+        {
+          "case": "later_waits",
+          "observed_status": "in_progress",
+          "passed": true
+        }
+      ],
+      "restart": [
+        {
+          "case": "fresh_graph_after_postgres_restart",
+          "observed_status": "awaiting_approval",
+          "passed": true
+        }
+      ],
+      "queue_followup": [
+        {
+          "case": "held_head",
+          "observed_status": "awaiting_approval",
+          "passed": true
+        },
+        {
+          "case": "later_waits",
+          "observed_status": "in_progress",
+          "passed": true
+        },
+        {
+          "case": "approve_held_head_to_completion",
+          "observed_status": "completed",
+          "passed": true
+        },
+        {
+          "case": "queued_order_after_head_completed",
+          "observed_status": "completed",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "scope": {
+    "real": "Production exporter/import preflight, step/config validators, orchestration graph, native handlers, HTTP/MCP mapping and normalization, native Wait/Approval, PostgreSQL SQL parser/compiler and disposable real database.",
+    "substituted": "Provider HTTP/JSONRPC/SMTP/Telegram transport responses, scoped fixture repositories/grants/auth/artifact IO, SQL Toolbox wire adapter using actual disposable PostgreSQL, in-memory graph checkpoints.",
+    "limitations": [
+      "No live login/OAuth/scopes/provider responses or source event subscriptions.",
+      "Drive folder MCP input subset from official typed docs; live result envelope unobserved, explicit standards envelope substituted and no downstream folder output consumer.",
+      "HTTP/MCP fixture checkpoint saver retains two snapshots; long-history durability not established. M5 uses official unmodified MemorySaver.",
+      "M5 restart is SQL journal plus fresh graph, not production worker/broker/checkpointer crash qualification. SQL and HTTP not one transaction; no exactly-once guarantee.",
+      "Source-branded email content intentionally replaced by original neutral confirmation; no Make IMAP Sent-copy parity.",
+      "Typeform ticket profile is existing internal-use Zendesk Basic API-token setup, not managed OAuth; dedicated retry_max_attempts=0."
+    ]
+  },
+  "privacy": {
+    "credentials": "No literal provider credentials; canonical secret references retained.",
+    "m3": "Original company/person/phone/images/marketing links and branded subject removed; synthetic SMTP subject and body assertions passed.",
+    "source_exports_redistributed": false,
+    "source_attribution_and_notices": "See per-template setup guides and retained MIT notices for M3/M5. No license claim for hosted AP template; original target implementation only."
+  },
+  "mcp_blocked_workflows": {
+    "count": 7,
+    "published": false,
+    "policy": "Remain blocked pending authentic selected-server tool schemas; no HTTP bypass."
+  }
+}
