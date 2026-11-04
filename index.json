@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-03.94b5f99b",
-  "published_at": "2026-11-03T19:31:59Z",
+  "catalog_revision": "2026-11-04.0fcb2c81",
+  "published_at": "2026-11-04T07:11:08Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -223,6 +223,40 @@
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
       "updated_at": "2026-10-31T17:25:10Z"
+    },
+    {
+      "item_id": "ap_typeform_zendesk",
+      "version": "1.0.0",
+      "name": "Create Zendesk tickets from new Typeform responses",
+      "summary": "Create private Zendesk tickets from trusted Typeform response payloads.",
+      "description": "Create private Zendesk tickets from trusted Typeform response payloads. Disabled unbound callable template, independently authored from the documented intake pattern. Internal existing Zendesk API-token profile only: configure HTTPS subdomain and project secrets zendesk_username (email/token) and zendesk_api_token; auth_ref contains secret names, never key values. Requires dedicated project retry_max_attempts=0 for immediate requester lookup-error fallback. Supply destination organization_id and expected_form_id. Answer positions are body text 0, requester name text 1, email 2. Configure a trusted verified Typeform event adapter separately; this template creates no subscription or OAuth flow. Offline fixture qualification only. Setup and adaptation limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/ap_typeform_zendesk/README.md",
+      "categories": [
+        "support"
+      ],
+      "tags": [
+        "support",
+        "typeform",
+        "zendesk"
+      ],
+      "integrations": [],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/support/ap_typeform_zendesk.yaml",
+      "workflow_yaml_bytes": 20555,
+      "workflow_yaml_sha256": "4e3495289968327fae58735768c0b15de6ce466d2076a3add050710ab4ce14b5",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-04T07:11:08Z",
+      "updated_at": "2026-11-04T07:11:08Z"
     },
     {
       "item_id": "security_daily_20438",
@@ -469,6 +503,86 @@
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
       "updated_at": "2026-11-03T19:31:59Z"
+    },
+    {
+      "item_id": "make_payment_fulfillment_m3",
+      "version": "1.0.0",
+      "name": "Notify and fulfill trusted Stripe charge events",
+      "summary": "Notify a Telegram channel about a trusted charge and, for exact succeeded status, create a Google Drive folder and send a neutral customer email.",
+      "description": "Notify a Telegram channel about a trusted charge and, for exact succeeded status, create a Google Drive folder and send a neutral customer email. Disabled unbound callable adaptation of a Make payment scenario: sequential Telegram, conditional Drive, conditional SMTP; raw amount minor units preserved. Source branded welcome email replaced with a generic confirmation, HTML escaping preserved. Configure Telegram 1.3.2 and SMTP 0.3.1 connections and map the Google Drive create_file MCP dependency using its official documented folder schema. Configure trusted Stripe event admission separately. No subscription, replay ledger, folder sharing, compensation, automatic write retry or IMAP Sent-folder copy is included. Real OAuth/provider responses remain untested. Setup, source attribution and limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/make_payment_fulfillment_m3/README.md",
+      "categories": [
+        "finance"
+      ],
+      "tags": [
+        "business-equivalent",
+        "disabled",
+        "make",
+        "migration"
+      ],
+      "integrations": [
+        "flowsteward.telegram",
+        "flowsteward.outgoing-email"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [
+        {
+          "kind": "tool",
+          "label": "connector.m3_drive_folder_create_template",
+          "ref": "connector.m3_drive_folder_create_template",
+          "required": true
+        }
+      ],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/finance/make_payment_fulfillment_m3.yaml",
+      "workflow_yaml_bytes": 11688,
+      "workflow_yaml_sha256": "314b4290a68dfc1b5a3a6c81003883dc6b667855e220600d158d7540c6adeaeb",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-04T07:11:08Z",
+      "updated_at": "2026-11-04T07:11:08Z"
+    },
+    {
+      "item_id": "m5_order_failsafe",
+      "version": "1.0.0",
+      "name": "Order export protocol with a durable queue",
+      "summary": "Adapted protocol example: validate orders, route shipping-method decisions, and call source-compatible demo order/ops HTTP endpoints.",
+      "description": "Adapted protocol example: validate orders, route shipping-method decisions, and call source-compatible demo order/ops HTTP endpoints. This is not a real 3PL integration. Qualified with core 0.9.9 and PostgreSQL extension 1.4.0; latest catalog 1.4.1 was not qualified. Required SQL setup: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/queue-schema.sql . Setup and limitations: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/README.md . Use a dedicated project with concurrency_cap=1, trusted immutable delivery identity/scope and one active invocation per delivery. Reconcile uncertain creates manually before approval. Replace demo endpoints and configure a trusted webhook adapter. Disabled on import; no exactly-once or exact Make parity claim.",
+      "categories": [
+        "operations"
+      ],
+      "tags": [
+        "fulfillment",
+        "migration"
+      ],
+      "integrations": [
+        "flowsteward.data-connector-mcp-toolbox-postgres"
+      ],
+      "trigger_types": [
+        "manual",
+        "sub_workflow"
+      ],
+      "setup_requirements": [],
+      "includes": [],
+      "bundle_schema": "platform.workflow_bundle.v2",
+      "compatible_flow_steward": {
+        "min": "0.9.9",
+        "max": ""
+      },
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/operations/m5_order_failsafe.yaml",
+      "workflow_yaml_bytes": 82713,
+      "workflow_yaml_sha256": "77976f38026e3d487fef259c4401f36e148f432b8d5676719dbb6b088a35f48b",
+      "publication_status": "published",
+      "verification_status": "verified",
+      "added_at": "2026-11-04T07:11:08Z",
+      "updated_at": "2026-11-04T07:11:08Z"
     },
     {
       "item_id": "catalog_cv_evidence_brief",
