@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-04.0fcb2c81",
-  "published_at": "2026-11-04T07:11:08Z",
+  "catalog_revision": "2026-11-14.1a63b97e",
+  "published_at": "2026-11-14T19:26:28Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -89,10 +89,10 @@
     },
     {
       "item_id": "ux_feedback_9881",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Classify customer feedback with allowed tags",
-      "summary": "Tag new customer feedback in batches and update the feedback table.",
-      "description": "Tag new customer feedback in batches and update the feedback table. Adapted from https://n8n.io/workflows/9881/. Offline executor qualification: 15 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Classify unprocessed customer feedback in Google Sheets with your allowed tags, sentiment and emotions.",
+      "description": "Classify unprocessed customer feedback in Google Sheets with your allowed tags, sentiment and emotions. Reads the Tags and Feedbacks tables, processes rows with a blank Status in batches of 10, and writes classifications and the supplied processing date back to Feedbacks. Unmatched feedback receives suggested AI tags and Needs Review status. Use it to organize a product feedback backlog. Requires Google Workspace 0.3.3, an AI model and dedicated contiguous plain-value tables of at most 100 rows each, with one writer. Disabled on import; select the model and validate and enable the included agents, skills and child workflows before activation. Forms, schedules and trusted dates need separate setup. Adapted from https://n8n.io/workflows/9881/; 15 synthetic offline scenarios passed, with no live API or import verification.",
       "categories": [
         "support"
       ],
@@ -127,13 +127,13 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/support/ux_feedback_9881.yaml",
-      "workflow_yaml_bytes": 42222,
-      "workflow_yaml_sha256": "d3124c40569989ffb71e109ca39bc12fa402ee2c8a6998282cdaf6be95c2a7d1",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/support/ux_feedback_9881_1_0_1.yaml",
+      "workflow_yaml_bytes": 42324,
+      "workflow_yaml_sha256": "31e805479dd743a6aac03c847b099423808648f21728d588cfd2a4722aa86d7c",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_social_content_pack",
@@ -178,10 +178,10 @@
     },
     {
       "item_id": "catalog_research_paper_brief",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Create a structured research-paper brief with evidence",
-      "summary": "Upload a research paper PDF and state your research focus.",
-      "description": "Upload a research paper PDF and state your research focus. Docling extracts the text and the model returns the title, authors, research question, method, findings with verbatim quotes, limitations and how the paper relates to your focus. The report flags any quote the text does not contain. Up to 60,000 characters of paper text are analysed, which covers most papers; the report says when it is partial.",
+      "summary": "Create a research-paper brief from an uploaded PDF and your research focus.",
+      "description": "Create a research-paper brief from an uploaded PDF and your research focus. Docling extracts the text and the model returns the title, authors, research question, method, findings with verbatim quotes, limitations and relevance to your focus. Use it to prepare an evidence-based literature review or reading note. The report flags quotes absent from the extracted text. Analyses at most 60,000 characters and discloses partial coverage; extraction can omit content. Requires a configured Docling service and AI model.",
       "categories": [
         "documents"
       ],
@@ -216,20 +216,20 @@
         "min": "0.9.4",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/documents/catalog_research_paper_brief.yaml",
-      "workflow_yaml_bytes": 15552,
-      "workflow_yaml_sha256": "1040f49307568c15c5092c92f6fed8bbec85119381366936e47140389b138ddd",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/documents/catalog_research_paper_brief_1_0_1.yaml",
+      "workflow_yaml_bytes": 15660,
+      "workflow_yaml_sha256": "2d18b7bd9abe1953ae9d21ac2804da92ca8945d8f9370059e0307ae02c472274",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-10-31T17:25:10Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "ap_typeform_zendesk",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Create Zendesk tickets from new Typeform responses",
-      "summary": "Create private Zendesk tickets from trusted Typeform response payloads.",
-      "description": "Create private Zendesk tickets from trusted Typeform response payloads. Disabled unbound callable template, independently authored from the documented intake pattern. Internal existing Zendesk API-token profile only: configure HTTPS subdomain and project secrets zendesk_username (email/token) and zendesk_api_token; auth_ref contains secret names, never key values. Requires dedicated project retry_max_attempts=0 for immediate requester lookup-error fallback. Supply destination organization_id and expected_form_id. Answer positions are body text 0, requester name text 1, email 2. Configure a trusted verified Typeform event adapter separately; this template creates no subscription or OAuth flow. Offline fixture qualification only. Setup and adaptation limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/ap_typeform_zendesk/README.md",
+      "summary": "Create private Zendesk tickets from trusted Typeform responses.",
+      "description": "Create private Zendesk tickets from trusted Typeform responses. Supply a verified, normalized form submission, expected form ID and destination organization ID. The workflow searches for an existing requester or supplies a new requester's name and email, then returns the created ticket ID and response. Answers must be ordered as body text, requester name and email. Use it for form-to-helpdesk intake. Disabled on import; configure your Zendesk HTTPS subdomain and existing internal-use API-token secrets zendesk_username (email/token) and zendesk_api_token. A dedicated project with retry_max_attempts=0 is required for immediate requester-lookup-error fallback. Configure trusted Typeform verification separately; no subscription or OAuth flow is included. Offline fixture qualification only. Setup and limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/ap_typeform_zendesk/README.md",
       "categories": [
         "support"
       ],
@@ -250,20 +250,20 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/support/ap_typeform_zendesk.yaml",
-      "workflow_yaml_bytes": 20555,
-      "workflow_yaml_sha256": "4e3495289968327fae58735768c0b15de6ce466d2076a3add050710ab4ce14b5",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/support/ap_typeform_zendesk_1_0_1.yaml",
+      "workflow_yaml_bytes": 20569,
+      "workflow_yaml_sha256": "304f016e85a6abcb1334995cca7970ee7fcc8a5cc5e360db5490df249976598d",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-04T07:11:08Z",
-      "updated_at": "2026-11-04T07:11:08Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "security_daily_20438",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "name": "Daily security incident digest",
-      "summary": "Email a daily digest of security incidents from the incident log.",
-      "description": "Email a daily digest of security incidents from the incident log. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Email a daily patrol and security incident digest from a Google Sheets log.",
+      "description": "Email a daily patrol and security incident digest from a Google Sheets log. Supply the Security Log spreadsheet, a trusted start/end reporting window and a supervisor address; the workflow lists matching reports in time order and marks whether urgent items are included. An empty window sends no email. Use it for a supervisor's daily activity handover. Requires Google Workspace 0.3.3, Outgoing Email/SMTP 0.3.1 and a dedicated contiguous plain-value log of at most 100 rows, with one writer. Disabled on import; validate setup before enabling. The schedule, source forms and trusted timestamps require separate setup. Adapted from https://n8n.io/workflows/20438/; the incident workflow set passed 20 synthetic offline scenarios, with no live API or import verification.",
       "categories": [
         "operations"
       ],
@@ -286,13 +286,13 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_daily_20438.yaml",
-      "workflow_yaml_bytes": 12125,
-      "workflow_yaml_sha256": "ef6764713f54316290e2b357433dc2cd0c3b4e58796755d0e6d71fafe5c8e8ec",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/operations/security_daily_20438_0_1_1.yaml",
+      "workflow_yaml_bytes": 12105,
+      "workflow_yaml_sha256": "98a75a0b4528f7fafa81d4f52a671b461e81bfe02eac12c18698e9eb4be787f3",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_email_reply_draft",
@@ -421,10 +421,10 @@
     },
     {
       "item_id": "invoice_reminders_20173",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "name": "Invoice reminders, escalation and weekly aging",
-      "summary": "Remind customers about overdue invoices, escalate and produce an aging report.",
-      "description": "Remind customers about overdue invoices, escalate and produce an aging report. Adapted from https://n8n.io/workflows/20173/. Offline executor qualification: 34 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Send invoice reminders, escalate overdue accounts and email a weekly receivables aging report.",
+      "description": "Send invoice reminders, escalate overdue accounts and email a weekly receivables aging report. Reads the Invoices Google Sheets table using your supplied date, reminder stages, escalation day and closed statuses. Sends reminders through SMTP, records accepted stages in the table, and sends escalations to your chosen internal address. The aging report groups open balances by age and currency for finance. Use it for a small accounts-receivable ledger. Requires Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1; use a dedicated contiguous plain-value table of at most 100 rows and one writer. Disabled on import; validate setup and the included child workflow before activation. Scheduling and trusted current dates need separate setup. Adapted from https://n8n.io/workflows/20173/; 34 synthetic offline scenarios passed, with no live API or import verification.",
       "categories": [
         "finance"
       ],
@@ -454,20 +454,20 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/finance/invoice_reminders_20173.yaml",
-      "workflow_yaml_bytes": 51696,
-      "workflow_yaml_sha256": "dfb25347f8db367c4ab8479cfe630b798ff6352a0d8509ee6e1bca40ac207c69",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/finance/invoice_reminders_20173_0_1_1.yaml",
+      "workflow_yaml_bytes": 51775,
+      "workflow_yaml_sha256": "08e1297f815ea909db55e28fe2e8edce080d44b8c3a816b165f572ff3c8e16ed",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "security_monthly_20438",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "name": "Monthly security incident review",
-      "summary": "Prepare a monthly incident summary and AI review for security operations.",
-      "description": "Prepare a monthly incident summary and AI review for security operations. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Email a monthly security operations review from a Google Sheets incident log.",
+      "description": "Email a monthly security operations review from a Google Sheets incident log. Supply the Security Log spreadsheet, a trusted reporting window and a supervisor address. Fixed calculations count reports, incidents and urgent items, and group reports by site; an AI agent writes a short review and practical suggestion from that evidence. An empty window sends no email. Use it for an operations manager's monthly review. Requires Google Workspace 0.3.3, Outgoing Email/SMTP 0.3.1, an AI model and a dedicated contiguous plain-value log of at most 100 rows, with one writer. Disabled on import; configure and validate the model and included agent/skill before activation. Forms, schedules and trusted timestamps need separate setup. Adapted from https://n8n.io/workflows/20438/; the incident workflow set passed 20 synthetic offline scenarios, with no live API or import verification.",
       "categories": [
         "operations"
       ],
@@ -496,20 +496,20 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_monthly_20438.yaml",
-      "workflow_yaml_bytes": 19907,
-      "workflow_yaml_sha256": "3e2dd18e94e2e46224d245616341bd534369049cc3d4991380c250aa4bf8eb1b",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/operations/security_monthly_20438_0_1_1.yaml",
+      "workflow_yaml_bytes": 19989,
+      "workflow_yaml_sha256": "3157fdb2c79d27e88cbeace38d08449e3232789c5a506dfff0d75c23103853f4",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "make_payment_fulfillment_m3",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Notify and fulfill trusted Stripe charge events",
-      "summary": "Notify a Telegram channel about a trusted charge and, for exact succeeded status, create a Google Drive folder and send a neutral customer email.",
-      "description": "Notify a Telegram channel about a trusted charge and, for exact succeeded status, create a Google Drive folder and send a neutral customer email. Disabled unbound callable adaptation of a Make payment scenario: sequential Telegram, conditional Drive, conditional SMTP; raw amount minor units preserved. Source branded welcome email replaced with a generic confirmation, HTML escaping preserved. Configure Telegram 1.3.2 and SMTP 0.3.1 connections and map the Google Drive create_file MCP dependency using its official documented folder schema. Configure trusted Stripe event admission separately. No subscription, replay ledger, folder sharing, compensation, automatic write retry or IMAP Sent-folder copy is included. Real OAuth/provider responses remain untested. Setup, source attribution and limits: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/make_payment_fulfillment_m3/README.md",
+      "summary": "Notify Telegram about a trusted Stripe charge and send a customer confirmation for successful payments.",
+      "description": "Notify Telegram about a trusted Stripe charge and send a customer confirmation for successful payments. Supply a verified charge event, connection references and a parent folder ID. After the Telegram notification, exact status succeeded creates a Google Drive folder and sends a generic SMTP email; amounts remain in raw minor units. Use it as a payment-notification and folder-creation starting point. Disabled on import; configure Telegram 1.3.2, SMTP 0.3.1 and the documented Google Drive create_file MCP folder action. Trusted Stripe event admission must be configured separately. Earlier effects remain if a later step fails; reconcile uncertain results before retrying. No subscription, replay ledger, folder sharing, compensation, automatic write retry or Sent-folder copy is included. Live OAuth/provider responses are untested. Setup and attribution: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/make_payment_fulfillment_m3/README.md",
       "categories": [
         "finance"
       ],
@@ -541,20 +541,20 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/finance/make_payment_fulfillment_m3.yaml",
-      "workflow_yaml_bytes": 11688,
-      "workflow_yaml_sha256": "314b4290a68dfc1b5a3a6c81003883dc6b667855e220600d158d7540c6adeaeb",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/finance/make_payment_fulfillment_m3_1_0_1.yaml",
+      "workflow_yaml_bytes": 11707,
+      "workflow_yaml_sha256": "3f20970fd41b23e296e15cdac39e525c8d089fb8e77b2e5aca90710345bec8ce",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-04T07:11:08Z",
-      "updated_at": "2026-11-04T07:11:08Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "m5_order_failsafe",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Order export protocol with a durable queue",
-      "summary": "Adapted protocol example: validate orders, route shipping-method decisions, and call source-compatible demo order/ops HTTP endpoints.",
-      "description": "Adapted protocol example: validate orders, route shipping-method decisions, and call source-compatible demo order/ops HTTP endpoints. This is not a real 3PL integration. Qualified with core 0.9.9 and PostgreSQL extension 1.4.0; latest catalog 1.4.1 was not qualified. Required SQL setup: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/queue-schema.sql . Setup and limitations: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/README.md . Use a dedicated project with concurrency_cap=1, trusted immutable delivery identity/scope and one active invocation per delivery. Reconcile uncertain creates manually before approval. Replace demo endpoints and configure a trusted webhook adapter. Disabled on import; no exactly-once or exact Make parity claim.",
+      "summary": "Process order exports through a PostgreSQL queue with retries and manual recovery.",
+      "description": "Process order exports through a PostgreSQL queue with retries and manual recovery. Supply an order and trusted delivery identity; the workflow calls HTTP services to validate the order, map its shipping method and create it, with operations alerts for failure paths. The durable journal holds later orders behind unfinished work. Use it to study or adapt an order-export recovery protocol; the endpoints are demos, not a real 3PL integration. Qualified with core 0.9.9 and PostgreSQL 1.4.0, not 1.4.1. Disabled on import; provision the companion SQL, replace demo endpoints and configure trusted ingress. Requires a dedicated project with concurrency_cap=1, immutable delivery identity/scope and one active invocation per delivery. Reconcile uncertain creates before recovery approval; no exactly-once guarantee or exact Make parity. SQL: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/queue-schema.sql . Setup: https://github.com/Flow-Steward/workflows/blob/main/docs/templates/m5_order_failsafe/README.md .",
       "categories": [
         "operations"
       ],
@@ -576,13 +576,13 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/9db8f6f6ce4cda31415e668cc4c2a0d1afcd40d7/workflows/operations/m5_order_failsafe.yaml",
-      "workflow_yaml_bytes": 82713,
-      "workflow_yaml_sha256": "77976f38026e3d487fef259c4401f36e148f432b8d5676719dbb6b088a35f48b",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/operations/m5_order_failsafe_1_0_1.yaml",
+      "workflow_yaml_bytes": 82906,
+      "workflow_yaml_sha256": "c2a9c302f12bc1fa4f8c065f2111e8a4cb9b0c2c9d6f1428dc49b31e8355413d",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-04T07:11:08Z",
-      "updated_at": "2026-11-04T07:11:08Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_cv_evidence_brief",
@@ -784,10 +784,10 @@
     },
     {
       "item_id": "security_intake_20438",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "name": "Security incident intake and escalation",
-      "summary": "Classify patrol incidents, log reports and escalate urgent incidents by email.",
-      "description": "Classify patrol incidents, log reports and escalate urgent incidents by email. Adapted from https://n8n.io/workflows/20438/. Offline executor qualification: 20 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Classify patrol reports, save them to Google Sheets and email urgent incident alerts.",
+      "description": "Classify patrol reports, save them to Google Sheets and email urgent incident alerts. Supply officer details, site, event description, trusted report ID and timestamp, plus supervisor and client addresses. The AI classifies severity and summarizes the report; the workflow appends it to Security Log and emails both recipients for urgent cases. Missing required details trigger a rejection email instead of a log entry. Use it for private-security incident intake. Requires Google Workspace 0.3.3, Outgoing Email/SMTP 0.3.1 and an AI model. Use a dedicated contiguous plain-value log and one writer. Disabled on import; configure and validate the included agent/skill before activation. The form adapter and trusted timestamps need separate setup. Adapted from https://n8n.io/workflows/20438/; the incident workflow set passed 20 synthetic offline scenarios, with no live API or import verification.",
       "categories": [
         "operations"
       ],
@@ -816,20 +816,20 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/operations/security_intake_20438.yaml",
-      "workflow_yaml_bytes": 41446,
-      "workflow_yaml_sha256": "5a1bdf0e99ce9ff0d142e708fa0cced867977823978faaced2b4c1004b449677",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/operations/security_intake_20438_0_1_1.yaml",
+      "workflow_yaml_bytes": 41541,
+      "workflow_yaml_sha256": "ba7fb5f93bf858a55bb75d2b7dab8300b87199f87d9ae63ef31e62e605fd04bc",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "seller_weekly_reports_20542",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Seller weekly property reports (20542)",
-      "summary": "Email sellers a weekly property report from listings, leads and viewings.",
-      "description": "Email sellers a weekly property report from listings, leads and viewings. Adapted from https://n8n.io/workflows/20542/. Offline executor qualification: 10 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Email property sellers a weekly report of enquiries, viewings and viewer feedback.",
+      "description": "Email property sellers a weekly report of enquiries, viewings and viewer feedback. Reads Listings20542, Leads20542 and Viewings20542 in Google Sheets, groups eligible properties by seller email, and sends one HTML report per seller with the agent copied privately. Reports include seven-day and lifetime activity, upcoming viewings, ratings and rule-based suggestions. Accepted sends update Last Report Sent At in the listings table. Use it for a real-estate agency's seller updates. Requires Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1; each dedicated contiguous plain-value table is limited to 100 rows, with one writer. Disabled on import; validate setup before enabling. Scheduling and a trusted report timestamp need separate setup. Adapted from https://n8n.io/workflows/20542/; 10 synthetic offline scenarios passed, with no live API or import verification.",
       "categories": [
         "sales"
       ],
@@ -852,13 +852,13 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/sales/seller_weekly_reports_20542.yaml",
-      "workflow_yaml_bytes": 34833,
-      "workflow_yaml_sha256": "fa4cff9eb5ebc3a558852f5ac4175f6e15b4b22979fa3d16b09ad71388f804a1",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/sales/seller_weekly_reports_20542_1_0_1.yaml",
+      "workflow_yaml_bytes": 34922,
+      "workflow_yaml_sha256": "3eeba51617c15ef1a225cffc98d013737ea973b9a0bb7fd60545070c20367419",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_meeting_slots",
@@ -963,10 +963,10 @@
     },
     {
       "item_id": "catalog_support_triage_review",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Triage a support request into a suggested review queue",
-      "summary": "Classify one supplied support issue using a dedicated native provider-backed agent, then route typed category output through native Switch branches to a sugges…",
-      "description": "Classify one supplied support issue using a dedicated native provider-backed agent, then route typed category output through native Switch branches to a suggested review queue. Returns a plain-language summary, evidence and policy-grounded draft reply for human review. No helpdesk/inbox connection, actual assignment, resolution or send.",
+      "summary": "Suggest review queues and draft a reply for one pasted customer support request.",
+      "description": "Suggest review queues and draft a reply for one pasted customer support request. Supply a request reference, issue text, optional approved policy and optional queue labels. An AI agent classifies billing, technical, account-access or other issues; the workflow maps primary and supported secondary categories to suggested queues and returns a summary, evidence and unsent reply for human review. Use it to prepare a support handoff. Reads at most 12,000 request characters and 8,000 policy characters, with coverage disclosed. Requires a configured AI model. No helpdesk or inbox connection, actual assignment, resolution or sending is included.",
       "categories": [
         "support"
       ],
@@ -988,13 +988,13 @@
         "min": "0.9.4",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/4d2efd9e56dcb7a7d9d9aec37c8765cd43473b72/workflows/support/catalog_support_triage_review_1_1_0.yaml",
-      "workflow_yaml_bytes": 23710,
-      "workflow_yaml_sha256": "fb32c8579e5de65d6e6325376c8ce308f091b2f4cb26992cee4a1ea9ff58d19a",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/support/catalog_support_triage_review_1_1_1.yaml",
+      "workflow_yaml_bytes": 24005,
+      "workflow_yaml_sha256": "96130cf1f795d5158c0753e0d1e1209714733370eb8687a383b07a5a451bd52f",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-10-31T17:25:10Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_meeting_actions",
@@ -1033,10 +1033,10 @@
     },
     {
       "item_id": "catalog_customer_feedback",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Turn customer feedback into a prioritized action plan",
-      "summary": "Review up to 100 feedback records and 30,000 characters.",
-      "description": "Review up to 100 feedback records and 30,000 characters. Get validated sentiment ID lists, calculated counts, source-grounded themes and proposed actions for human review. Duplicate or missing IDs and larger inputs stop before a report is accepted. Manual text input only; CSV upload, batch processing and external system updates are not implemented. Uses a native model provider with a reusable classification skill.",
+      "summary": "Turn pasted customer feedback into sentiment counts, themes and proposed actions.",
+      "description": "Turn pasted customer feedback into sentiment counts, themes and proposed actions. Supply your product context and one unique ID: feedback record per line. An AI agent classifies records into positive, neutral, negative, mixed or unclassified groups; fixed checks verify every ID appears once and calculate the counts. Returns the ID lists and a report for product planning and human review. Accepts at most 100 records and 30,000 characters; duplicate or missing IDs and larger inputs stop before acceptance. Requires a configured AI model. CSV upload, external updates and customer messaging are not included.",
       "categories": [
         "support"
       ],
@@ -1059,20 +1059,20 @@
         "min": "0.9.4",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/support/catalog_customer_feedback_1_1_0.yaml",
-      "workflow_yaml_bytes": 22361,
-      "workflow_yaml_sha256": "f1d499a45141b0ce51265e0ac8489a7eb318b92b738b18c631086e8d51bb6b4d",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/support/catalog_customer_feedback_1_1_1.yaml",
+      "workflow_yaml_bytes": 22538,
+      "workflow_yaml_sha256": "f052a61f41ccd38ef3a89d497bd8efdcd91a07db7789ac1307166ecaa7d161b7",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-10-31T17:25:10Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "catalog_email_digest",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Turn email messages into a digest and action queue",
-      "summary": "Paste a batch of email messages and get a digest, the action items addressed to you with verbatim quotes, dates to watch and unsent reply drafts.",
-      "description": "Paste a batch of email messages and get a digest, the action items addressed to you with verbatim quotes, dates to watch and unsent reply drafts. Works on pasted text only: no inbox access, sending, archiving or task creation. For a live mailbox, combine it with the IMAP mailbox search template. Up to 60,000 characters are analysed.",
+      "summary": "Turn pasted email messages into a digest, action queue and unsent reply drafts.",
+      "description": "Turn pasted email messages into a digest, action queue and unsent reply drafts. Supply each message's sender, subject and body, plus optional review preferences. The model extracts requests addressed to you with verbatim quotes, dates to watch and reply drafts, then returns a report and separate digest, action-item, date and draft fields. Use it to prepare a daily inbox review from text you supply. Analyses at most 60,000 characters. Requires an AI model; no inbox access, automatic IMAP message fetching, sending, archiving or task creation is included.",
       "categories": [
         "email"
       ],
@@ -1094,20 +1094,20 @@
         "min": "0.9.4",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/ebde3ea954ca530a0c9b4fe5fb3168c596f2e9ff/workflows/email/catalog_email_digest.yaml",
-      "workflow_yaml_bytes": 13166,
-      "workflow_yaml_sha256": "e680d4fce7352f4d7b6e73c7c2d0e30f16b8f9b0a05e686222f350d2f6f625b3",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/email/catalog_email_digest_1_0_1.yaml",
+      "workflow_yaml_bytes": 13384,
+      "workflow_yaml_sha256": "82470ca0d9719158195d6a384dd9faa9fbda6d85a3dce30fa26f4d196cc20b6d",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-10-31T17:25:10Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     },
     {
       "item_id": "weekly_kpi_17827",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Weekly KPI HTML report",
-      "summary": "Email a KPI summary with deterministic totals and an AI executive summary.",
-      "description": "Email a KPI summary with deterministic totals and an AI executive summary. Adapted from https://n8n.io/workflows/17827/. Offline executor qualification: 28 source scenarios passed with synthetic provider/model replies; no live API or import verification. Disabled on import. Configure released Google Workspace 0.3.3 and Outgoing Email/SMTP 0.3.1 connections and an AI model. Complete reads are limited to 100 rows per table; use dedicated contiguous plain-value tables and one writer. SMTP replaces Gmail sending. Source forms/schedules and trusted current-time inputs require separate setup; only callable workflow structure is included. Select the model, validate setup and enable any included agents, skills and child workflows before enabling the main workflow.",
+      "summary": "Email an HTML KPI report with calculated totals, averages and an AI executive summary.",
+      "description": "Email an HTML KPI report with calculated totals, averages and an AI executive summary. Reads a Google Sheets Metrics table, groups rows by metric name, calculates rounded whole-number totals and averages, and sends the report to your chosen recipient through SMTP. Use it for a small team's recurring management report. The supplied report date labels the email; it does not filter rows or establish week-over-week trends. Requires Google Workspace 0.3.3, Outgoing Email/SMTP 0.3.1, an AI model and a dedicated contiguous plain-value table of at most 100 rows, with one writer. Disabled on import; configure and validate the included agent/skill before activation. The schedule and trusted date need separate setup. Adapted from https://n8n.io/workflows/17827/; 28 synthetic offline scenarios passed, with no live API or import verification.",
       "categories": [
         "data"
       ],
@@ -1136,13 +1136,13 @@
         "min": "0.9.9",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/964865b5bf7e134dd1f1f6026b4c1af6e9e43df0/workflows/data/weekly_kpi_17827.yaml",
-      "workflow_yaml_bytes": 17648,
-      "workflow_yaml_sha256": "addf277e81971ba8ffd39aa33f060e2c07ded9613c9969b61868d9908b20efb1",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/d5ca78eae70fae16530f582b9ed7bf57d3e01f7d/workflows/data/weekly_kpi_17827_1_0_1.yaml",
+      "workflow_yaml_bytes": 17689,
+      "workflow_yaml_sha256": "ab0a4a0f635db4759563028284b53c7c9c24c16acd11c29c85ee335fa5470f7e",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-11-03T19:31:59Z",
-      "updated_at": "2026-11-03T19:31:59Z"
+      "updated_at": "2026-11-14T19:26:28Z"
     }
   ],
   "integration_labels": {
