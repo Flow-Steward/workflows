@@ -572,6 +572,8 @@ def _iso_utc(when: str) -> str:
 def workflow_files() -> list[str]:
     """Discover every export, refusing entries that would otherwise be skipped."""
     base = ROOT / WORKFLOWS_DIR
+    if base.is_symlink() or (base.exists() and not base.is_dir()):
+        raise CatalogError(f"{WORKFLOWS_DIR}: must be a regular directory, not a file or symlink")
     files: list[str] = []
     problems: list[str] = []
     for path in sorted(base.rglob("*")):
