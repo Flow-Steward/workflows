@@ -22,7 +22,7 @@ the files in `workflows/` after every merge.
    on a new installation creates them instead of asking for each one. The agents
    travel without a model: they use the model the importing project configures.
 3. Choose one folder from [`categories.json`](categories.json) and add the file as
-   `workflows/<category>/<workflow_id>.yaml`. The list is shared with the
+   `workflows/<category>/<workflow_id>.yaml` (or `.yml`). The list is shared with the
    [extension catalog](https://github.com/Flow-Steward/extensions), whose copy is the
    original; a pull request that changes it here alone fails.
 4. Open a pull request. The **Validate submission** check tells you what to fix.
@@ -38,6 +38,9 @@ The category is your choice; reviewers only check that it is one of the list.
 - a file carrying a workflow its main workflow does not call (one file is one
   template: a workflow and the child workflows it calls);
 - a folder that is not a category;
+- any file under `workflows/` without a lowercase `.yaml` or `.yml` suffix,
+  including documentation and placeholder files, or any symlink; keep supporting
+  documentation in `docs/` so a misplaced export cannot be silently omitted;
 - a name that is an identifier (`stock_import`) instead of a title, or a
   description shorter than 40 characters;
 - a version that is not semantic (`1.0.0`);
