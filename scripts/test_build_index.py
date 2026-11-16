@@ -684,3 +684,37 @@ def test_cli_refuses_unsupported_file_without_overwriting_index(tmp_path, monkey
     assert ".yaml or .yml" in result.stderr
     assert result.stdout == ""
     assert (repo / "index.json").read_bytes() == previous
+
+
+@pytest.mark.parametrize("kind", ["file", "broken_symlink", "directory_symlink"])
+@pytest.mark.parametrize("arguments", [[], ["--check"]], ids=["publish", "check"])
+def test_cli_refuses_invalid_workflows_root_without_overwriting_index(
+    tmp_path, monkeypatch, kind, arguments,
+):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/valid.yaml", _bundle())
+    root = repo / "workflows"
+    outside = repo / "outside"
+    root.rename(outside)
+    if kind == "file":
+        root.write_text(yaml.safe_dump(_bundle()))
+    elif kind == "broken_symlink":
+        root.symlink_to(repo / "missing")
+    else:
+        root.symlink_to(outside, target_is_directory=True)
+    previous = b'{"previous": "published index"}\n'
+    (repo / "index.json").write_bytes(previous)
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    script = scripts / "build_index.py"
+    script.write_bytes(Path(builder.__file__).read_bytes())
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--repository", "a/b", *arguments],
+        cwd=repo, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 1
+    assert "workflows: must be a regular directory" in result.stderr
+    assert result.stdout == ""
+    assert (repo / "index.json").read_bytes() == previous
