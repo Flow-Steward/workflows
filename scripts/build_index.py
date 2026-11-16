@@ -570,12 +570,25 @@ def _iso_utc(when: str) -> str:
 
 
 def workflow_files() -> list[str]:
+    """Discover every export, refusing entries that would otherwise be skipped."""
     base = ROOT / WORKFLOWS_DIR
-    return sorted(
-        path.relative_to(ROOT).as_posix()
-        for path in base.rglob("*")
-        if path.is_file() and path.suffix in {".yaml", ".yml"}
-    )
+    if base.is_symlink() or (base.exists() and not base.is_dir()):
+        raise CatalogError(f"{WORKFLOWS_DIR}: must be a regular directory, not a file or symlink")
+    files: list[str] = []
+    problems: list[str] = []
+    for path in sorted(base.rglob("*")):
+        rel_path = path.relative_to(ROOT).as_posix()
+        if path.is_symlink():
+            problems.append(f"{rel_path}: symlinks are not workflow exports; use a regular file")
+        elif path.is_dir():
+            continue
+        elif not path.is_file() or path.suffix not in {".yaml", ".yml"}:
+            problems.append(f"{rel_path}: workflow exports must be regular files ending in .yaml or .yml")
+        else:
+            files.append(rel_path)
+    if problems:
+        raise CatalogError("\n".join(problems))
+    return files
 
 
 def withdrawn_items(known_ids: set[str]) -> set[str]:
