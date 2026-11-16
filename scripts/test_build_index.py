@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -602,3 +603,84 @@ def test_invalid_withdrawals_do_not_silently_publish(tmp_path, monkeypatch, rows
     }))
     with pytest.raises(builder.CatalogError, match="withdrawn.json"):
         builder.build_index(repository="acme/catalog")
+
+# ---------------------------------------------------------------------------
+# discovery must not silently omit files from the catalog
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("filename", [
+    "mailbox.YAML", "mailbox.YML", "mailbox.yaml.txt", "mailbox",
+    "README.md", ".gitkeep",
+])
+def test_discovery_refuses_unsupported_filenames(tmp_path, monkeypatch, filename):
+    repo = _repo(tmp_path, monkeypatch)
+    rel = f"workflows/email/{filename}"
+    (repo / rel).write_text(yaml.safe_dump(_bundle()))
+
+    with pytest.raises(builder.CatalogError) as raised:
+        builder.workflow_files()
+
+    assert rel in str(raised.value)
+    assert ".yaml or .yml" in str(raised.value)
+
+
+@pytest.mark.parametrize("kind", ["file", "broken", "directory"])
+def test_discovery_refuses_symlinks(tmp_path, monkeypatch, kind):
+    repo = _repo(tmp_path, monkeypatch)
+    target = repo / "outside"
+    if kind == "file":
+        target.write_text(yaml.safe_dump(_bundle()))
+    elif kind == "directory":
+        target.mkdir()
+        (target / "hidden.yaml").write_text(yaml.safe_dump(_bundle()))
+    rel = "workflows/email/link.yaml"
+    (repo / rel).symlink_to(target, target_is_directory=kind == "directory")
+
+    with pytest.raises(builder.CatalogError) as raised:
+        builder.workflow_files()
+
+    assert rel in str(raised.value)
+    assert "symlink" in str(raised.value)
+
+
+def test_discovery_accepts_both_yaml_suffixes_and_ordinary_directories(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    for rel, item_id in [
+        ("workflows/email/a.yaml", "mailbox_a"),
+        ("workflows/inventory/b.yml", "mailbox_b"),
+    ]:
+        _commit(repo, rel, _bundle(workflow_id=item_id))
+    (repo / "workflows/other").mkdir()
+
+    assert builder.workflow_files() == [
+        "workflows/email/a.yaml", "workflows/inventory/b.yml",
+    ]
+    assert {item["item_id"] for item in builder.build_index(repository="a/b")["items"]} == {
+        "mailbox_a", "mailbox_b",
+    }
+
+
+@pytest.mark.parametrize("arguments", [[], ["--check"]], ids=["publish", "check"])
+def test_cli_refuses_unsupported_file_without_overwriting_index(tmp_path, monkeypatch, arguments):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/valid.yaml", _bundle())
+    rel = "workflows/email/skipped.yaml.txt"
+    (repo / rel).write_text(yaml.safe_dump(_bundle(workflow_id="skipped")))
+    previous = b'{"previous": "published index"}\n'
+    (repo / "index.json").write_bytes(previous)
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    script = scripts / "build_index.py"
+    script.write_bytes(Path(builder.__file__).read_bytes())
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--repository", "a/b", *arguments],
+        cwd=repo, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 1
+    assert rel in result.stderr
+    assert ".yaml or .yml" in result.stderr
+    assert result.stdout == ""
+    assert (repo / "index.json").read_bytes() == previous
