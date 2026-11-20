@@ -551,7 +551,10 @@ def _semver_key(version: str) -> tuple[int, int, int, int, str]:
 
 def load_category_labels() -> dict[str, str]:
     """categories.json: category id -> the name to show. The same file as the extension catalog's."""
-    raw = json.loads((ROOT / CATEGORIES_FILE).read_text(encoding="utf-8"))
+    path = ROOT / CATEGORIES_FILE
+    if path.is_symlink() or not path.is_file():
+        raise CatalogError(f"{CATEGORIES_FILE}: must be a regular file")
+    raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or not all(
         isinstance(key, str) and isinstance(value, str) and value.strip() for key, value in raw.items()
     ):
@@ -594,6 +597,8 @@ def workflow_files() -> list[str]:
 def withdrawn_items(known_ids: set[str]) -> set[str]:
     """Withdraw active listings without changing immutable published artifacts."""
     path = ROOT / WITHDRAWALS_FILE
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise CatalogError(f"{WITHDRAWALS_FILE}: must be a regular file")
     if not path.exists():
         return set()
     try:
@@ -742,12 +747,22 @@ def published_file_changes(base: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global ROOT
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="validate without writing")
     parser.add_argument("--base", help="git ref a pull request targets; refuses edits to its files")
     parser.add_argument("--repository", help="owner/name used in raw URLs")
+    parser.add_argument(
+        "--submission-root", type=Path, help="read catalog data from a separate checkout"
+    )
     args = parser.parse_args(argv)
+    if args.submission_root is not None and not args.check:
+        parser.error("--submission-root requires --check")
+    original_root = ROOT
     try:
+        if args.submission_root is not None:
+            ROOT = args.submission_root.resolve()
         if args.base:
             changed = published_file_changes(args.base)
             if changed:
@@ -761,6 +776,8 @@ def main(argv: list[str] | None = None) -> int:
     except CatalogError as exc:
         print(f"Catalog check failed:\n{exc}", file=sys.stderr)
         return 1
+    finally:
+        ROOT = original_root
     if args.check:
         print(f"Catalog OK: {len(json.loads(text)['items'])} workflows.")
         return 0

@@ -718,3 +718,39 @@ def test_cli_refuses_invalid_workflows_root_without_overwriting_index(
     assert "workflows: must be a regular directory" in result.stderr
     assert result.stdout == ""
     assert (repo / "index.json").read_bytes() == previous
+
+
+def test_trusted_cli_validates_a_separate_submission_checkout(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/valid.yaml", _bundle())
+    subprocess.run(["git", "branch", "base"], cwd=repo, check=True)
+    _commit(repo, "workflows/email/other.yaml", _bundle(workflow_id="other_workflow"))
+    script = Path(builder.__file__).resolve()
+
+    result = subprocess.run(
+        [
+            sys.executable, "-I", str(script), "--check", "--base", "base",
+            "--submission-root", str(repo), "--repository", "a/b",
+        ],
+        cwd=script.parent.parent, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Catalog OK: 2 workflows." in result.stdout
+    assert not (repo / "index.json").exists()
+
+
+@pytest.mark.parametrize("name", ["categories.json", "withdrawn.json"])
+def test_catalog_never_follows_metadata_symlinks(tmp_path, monkeypatch, name):
+    repo = _repo(tmp_path, monkeypatch)
+    _commit(repo, "workflows/email/valid.yaml", _bundle())
+    metadata = repo / name
+    target = repo / "other.json"
+    if metadata.exists():
+        metadata.rename(target)
+    else:
+        target.write_text('{"schema_version":"workflow_withdrawals/v1","items":[]}')
+    metadata.symlink_to(target)
+
+    with pytest.raises(builder.CatalogError, match="regular file"):
+        builder.build_index(repository="a/b")
