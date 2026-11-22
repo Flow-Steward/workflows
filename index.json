@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-22.a42c8e00",
-  "published_at": "2026-11-22T11:03:53Z",
+  "catalog_revision": "2026-11-22.624957a7",
+  "published_at": "2026-11-22T11:34:46Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -692,7 +692,7 @@
     },
     {
       "item_id": "catalog_invoice_pdf_review",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Review Invoice PDFs and Validate EU VAT with VIES",
       "summary": "Extract supplier invoice data from a PDF, check line totals and validate the seller's EU VAT number with VIES.",
       "description": "Extract supplier invoice data from a PDF, check line totals and validate the seller's EU VAT number with VIES.\n\nUse this workflow for accounts payable invoice review, supplier onboarding and logistics invoice processing. Upload one invoice PDF. Docling extracts its text, and the project's AI model reads the invoice number, parties, dates, currency, seller VAT ID, line items and printed amounts. Fixed rules compare quantity times unit price, line amounts against the subtotal, and subtotal plus tax against the total. The report flags missing fields and shows how much text was analysed, up to 20,000 characters.\n\nThe included Check VAT in VIES workflow verifies the seller's VAT registration. The report and structured outputs distinguish valid, invalid, missing or unsupported input, and unavailable. A timeout, a registry error or a failed check opens a manual review with the invoice details. Confirming the review completes the report with the original VAT status and the reviewer decision. Rejecting the review stops the run. VAT verification is a registration check. Invoice posting, payments and accounting approval remain with your accounts payable process.\n\nRequires a configured Docling connection and an AI model in the importing project. Enable OCR in Docling for scanned invoices and allow HTTPS access to the European Commission VIES service. VIES uses a public API and needs no API key. After import, map the Docling connection and enable the included VAT workflow before enabling the invoice workflow.",
@@ -741,13 +741,13 @@
         "min": "0.9.23",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/dd09b26ebfc44e775499916eeebd8053616606df/workflows/finance/catalog_invoice_pdf_review_1_1_0.yaml",
-      "workflow_yaml_bytes": 35311,
-      "workflow_yaml_sha256": "7c1c52073f490cd2a238704450dfd164e3dda86c4db85777a3804f17f65de536",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/0c6fd782ca2941b9f34ae355ec4e5e5ed6fdffbd/workflows/finance/catalog_invoice_pdf_review_1_1_1.yaml",
+      "workflow_yaml_bytes": 36015,
+      "workflow_yaml_sha256": "53e971df9ae72c3627923d5ca66c6834f32d46d765eed0b562948c3f91b377ce",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-11-22T11:03:53Z"
+      "updated_at": "2026-11-22T11:34:46Z"
     },
     {
       "item_id": "imap_mailbox_search",
