@@ -1,7 +1,7 @@
 {
   "schema_version": "workflow_template_catalog/v1",
-  "catalog_revision": "2026-11-20.b487989a",
-  "published_at": "2026-11-20T13:11:56Z",
+  "catalog_revision": "2026-11-22.a42c8e00",
+  "published_at": "2026-11-22T11:03:53Z",
   "items": [
     {
       "item_id": "catalog_pdf_questions",
@@ -692,14 +692,20 @@
     },
     {
       "item_id": "catalog_invoice_pdf_review",
-      "version": "1.0.0",
-      "name": "Review an uploaded invoice PDF",
-      "summary": "Upload an invoice PDF.",
-      "description": "Upload an invoice PDF. Docling extracts the text, the model reads the header fields, line items and printed totals, and fixed rules check that quantity x price, the line sum, subtotal + tax and the total agree. Returns the fields as separate outputs and a report that flags missing fields and arithmetic differences. Reads up to 20,000 characters of invoice text and says so when the document is longer. Nothing is approved, paid or posted.",
+      "version": "1.1.0",
+      "name": "Review Invoice PDFs and Validate EU VAT with VIES",
+      "summary": "Extract supplier invoice data from a PDF, check line totals and validate the seller's EU VAT number with VIES.",
+      "description": "Extract supplier invoice data from a PDF, check line totals and validate the seller's EU VAT number with VIES.\n\nUse this workflow for accounts payable invoice review, supplier onboarding and logistics invoice processing. Upload one invoice PDF. Docling extracts its text, and the project's AI model reads the invoice number, parties, dates, currency, seller VAT ID, line items and printed amounts. Fixed rules compare quantity times unit price, line amounts against the subtotal, and subtotal plus tax against the total. The report flags missing fields and shows how much text was analysed, up to 20,000 characters.\n\nThe included Check VAT in VIES workflow verifies the seller's VAT registration. The report and structured outputs distinguish valid, invalid, missing or unsupported input, and unavailable. A timeout, a registry error or a failed check opens a manual review with the invoice details. Confirming the review completes the report with the original VAT status and the reviewer decision. Rejecting the review stops the run. VAT verification is a registration check. Invoice posting, payments and accounting approval remain with your accounts payable process.\n\nRequires a configured Docling connection and an AI model in the importing project. Enable OCR in Docling for scanned invoices and allow HTTPS access to the European Commission VIES service. VIES uses a public API and needs no API key. After import, map the Docling connection and enable the included VAT workflow before enabling the invoice workflow.",
       "categories": [
         "finance"
       ],
-      "tags": [],
+      "tags": [
+        "accounts payable",
+        "invoice OCR",
+        "invoice processing",
+        "vat validation",
+        "vies"
+      ],
       "integrations": [
         "flowsteward.docling"
       ],
@@ -724,19 +730,24 @@
           "required": true
         }
       ],
-      "includes": [],
+      "includes": [
+        {
+          "item_id": "check_vat_in_vies",
+          "name": "Check VAT in VIES"
+        }
+      ],
       "bundle_schema": "platform.workflow_bundle.v2",
       "compatible_flow_steward": {
-        "min": "0.9.4",
+        "min": "0.9.23",
         "max": ""
       },
-      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/b681b0bb3437d9b6355811ac0cb8fde2071d8dbf/workflows/finance/catalog_invoice_pdf_review.yaml",
-      "workflow_yaml_bytes": 20137,
-      "workflow_yaml_sha256": "2434172cd605af09e8d2c3f8b50fdfcd327da291ee530df20c833702c09cacb2",
+      "workflow_yaml_url": "https://raw.githubusercontent.com/Flow-Steward/workflows/dd09b26ebfc44e775499916eeebd8053616606df/workflows/finance/catalog_invoice_pdf_review_1_1_0.yaml",
+      "workflow_yaml_bytes": 35311,
+      "workflow_yaml_sha256": "7c1c52073f490cd2a238704450dfd164e3dda86c4db85777a3804f17f65de536",
       "publication_status": "published",
       "verification_status": "verified",
       "added_at": "2026-10-31T17:25:10Z",
-      "updated_at": "2026-10-31T17:25:10Z"
+      "updated_at": "2026-11-22T11:03:53Z"
     },
     {
       "item_id": "imap_mailbox_search",
